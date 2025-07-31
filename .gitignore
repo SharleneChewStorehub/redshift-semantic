@@ -99,4 +99,26 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 package-lock.json
-yarn.lock 
+yarn.lock
+
+# Sensitive Business Data
+# Exclude data samples containing real business data, credentials, and API keys
+source/sh-reports/semantic_layer_v2/data_samples/latest_metabase_extractions/
+source/sh-reports/semantic_layer_v2/data_samples/archive/deprecated_extractions/
+source/sh-reports/semantic_layer_v2/data_samples/metabase_questions/
+source/sh-reports/semantic_layer_v2/data_samples/*.json
+source/sh-reports/semantic_layer_v2/data_samples/*.csv
+
+# Business configuration files that may contain sensitive data
+source/sh-reports/semantic_layer_v2/validation/validation_results_*.json
+
+# Debug files with potential business data
+source/sh-reports/semantic_layer_v2/debug/
+
+# Any CSV files (likely to contain business data)
+*.csv
+
+# Business data extraction files
+*_samples.json
+*_enums.json
+extraction_summary.json 
