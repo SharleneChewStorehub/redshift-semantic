@@ -1,0 +1,565 @@
+{
+  "version": "2.0.0",
+  "description": "Semantic context for natural language interpretation and disambiguation",
+  "last_updated": "2025-07-08",
+  
+  "default_interpretations": {
+    "metrics": {
+      "sales": {
+        "default": "net_sales",
+        "reason": "Business users typically want revenue after deductions"
+      },
+      "revenue": {
+        "default": "net_sales",
+        "alternatives": ["gross_sales", "total_sales"]
+      },
+      "customers": {
+        "default": "unique_customer_count",
+        "context_clues": {
+          "with 'list'": "customer details",
+          "with 'new'": "first-time customers",
+          "with 'total'": "all registered customers"
+        }
+      },
+      "average": {
+        "transaction": "average_transaction_value",
+        "customer": "average_customer_lifetime_value",
+        "product": "average_units_per_transaction"
+      }
+    },
+    
+    "time_ranges": {
+      "when_not_specified": {
+        "default": "last 30 days",
+        "for_dashboards": "today",
+        "for_comparisons": "complete periods (e.g., full months)"
+      },
+      "relative_interpretations": {
+        "yesterday": "previous complete day",
+        "last_month": "previous complete calendar month",
+        "this_month": "month to date",
+        "recently": "last 7 days",
+        "ytd": "year to date from January 1"
+      }
+    },
+    
+    "aggregation_levels": {
+      "implicit_grouping": {
+        "by store": "GROUP BY storeid",
+        "by day": "GROUP BY DATE_TRUNC('day', createdtime)",
+        "by customer": "GROUP BY customerid",
+        "by product": "GROUP BY productid"
+      },
+      "default_granularity": {
+        "time_series": "daily",
+        "store_analysis": "individual stores",
+        "product_analysis": "SKU level"
+      }
+    },
+    
+    "sorting_defaults": {
+      "top/best": "ORDER BY metric DESC",
+      "bottom/worst": "ORDER BY metric ASC",
+      "chronological": "ORDER BY date ASC",
+      "alphabetical": "ORDER BY name ASC"
+    },
+    
+    "limit_defaults": {
+      "top_n_queries": 10,
+      "customer_lists": 100,
+      "transaction_details": 1000,
+      "export_all": "no limit with pagination"
+    }
+  },
+  
+  "disambiguation_rules": {
+    "ambiguous_terms": {
+      "sales": {
+        "check_for": ["gross", "net", "total", "before", "after"],
+        "if_contains": {
+          "gross|before|total": "gross_sales",
+          "net|after|final": "net_sales"
+        },
+        "default": "net_sales",
+        "ask_user_if": "Context unclear and difference > 10%"
+      },
+      
+      "date_ranges": {
+        "last_month": {
+          "interpretations": {
+            "complete_month": "Full previous calendar month",
+            "rolling_30_days": "Past 30 days including today"
+          },
+          "default": "complete_month",
+          "context_clues": {
+            "with 'exactly'": "complete_month",
+            "with 'past'": "rolling_30_days"
+          }
+        }
+      },
+      
+      "count_vs_amount": {
+        "transactions": {
+          "if_contains": {
+            "number|count|how many": "COUNT(DISTINCT receiptnumber)",
+            "value|amount|total|sum": "SUM(totalamount)"
+          }
+        },
+        "customers": {
+          "if_contains": {
+            "spent|revenue|value": "SUM(totalSpend)",
+            "count|number|how many": "COUNT(DISTINCT customerid)"
+          }
+        }
+      }
+    },
+    
+    "context_enhancement": {
+      "incomplete_questions": {
+        "show sales": {
+          "add": "for last 30 days by day"
+        },
+        "top customers": {
+          "add": "by lifetime value, limit 10"
+        },
+        "compare": {
+          "add": "this month vs last month"
+        }
+      },
+      
+      "implicit_filters": {
+        "best": "Add ORDER BY metric DESC LIMIT 10",
+        "growing": "Add HAVING current > previous",
+        "active": "Add WHERE last_transaction >= 30 days ago"
+      }
+    }
+  },
+  
+  "regional_context": {
+    "currency": {
+      "MY": {"symbol": "RM", "code": "MYR", "decimal_places": 2},
+      "SG": {"symbol": "S$", "code": "SGD", "decimal_places": 2},
+      "CN": {"symbol": "¥", "code": "CNY", "decimal_places": 2},
+      "TH": {"symbol": "฿", "code": "THB", "decimal_places": 2},
+      "PH": {"symbol": "₱", "code": "PHP", "decimal_places": 2},
+      "KE": {"symbol": "KSh", "code": "KES", "decimal_places": 2},
+      "BD": {"symbol": "৳", "code": "BDT", "decimal_places": 2},
+      "US": {"symbol": "$", "code": "USD", "decimal_places": 2}
+    },
+    
+    "tax_handling": {
+      "MY": {
+        "included_in_price": true,
+        "types": ["SST", "Service Tax", "GST"],
+        "typical_rate": 0.06,
+        "tax_ids": ["SST ID", "GST ID"],
+        "discovered_codes": ["SR", "ZR", "TX"],
+        "primary_code": "SR",
+        "description": "Service Tax regime"
+      },
+      "SG": {
+        "included_in_price": true,
+        "types": ["GST"],
+        "typical_rate": 0.08,
+        "discovered_codes": ["GST", "ZR", "TX"],
+        "primary_code": "GST"
+      },
+      "PH": {
+        "included_in_price": true,
+        "types": ["VAT", "BIR"],
+        "typical_rate": 0.12,
+        "special_flags": ["isbasicnecessitiesph", "issoloparentdiscountapplicable"],
+        "discovered_codes": ["BIR", "VAT", "ZR", "TX"],
+        "primary_code": "VAT",
+        "description": "BIR and VAT system"
+      },
+      "TH": {
+        "included_in_price": true,
+        "types": ["VAT"],
+        "typical_rate": 0.07,
+        "discovered_codes": ["VAT", "ZR", "TX"],
+        "primary_code": "VAT"
+      },
+      "US": {
+        "included_in_price": false,
+        "types": ["Sales Tax", "State Tax"],
+        "typical_rate": "Varies by state"
+      }
+    },
+    
+    "payment_preferences": {
+      "MY": {
+        "popular_methods": ["Cash", "QR Code", "E-Wallets"],
+        "qr_adoption": "High",
+        "digital_payment_types": ["qrCode", "custom"],
+        "cash_usage": "Declining but still significant"
+      },
+      "SG": {
+        "popular_methods": ["PayNow", "Cards", "QR Code"],
+        "qr_adoption": "Very High",
+        "digital_payment_types": ["qrCode", "NFC", "custom"],
+        "cash_usage": "Low"
+      },
+      "CN": {
+        "popular_methods": ["WeChat Pay", "Alipay", "QR Code"],
+        "qr_adoption": "Extremely High",
+        "digital_payment_types": ["qrCode", "custom"],
+        "cash_usage": "Very Low"
+      },
+      "TH": {
+        "popular_methods": ["PromptPay", "Cash", "QR Code"],
+        "qr_adoption": "Growing rapidly",
+        "digital_payment_types": ["qrCode", "custom"],
+        "cash_usage": "Still prevalent"
+      },
+      "PH": {
+        "popular_methods": ["Cash", "GCash", "PayMaya"],
+        "qr_adoption": "Growing",
+        "digital_payment_types": ["custom", "qrCode"],
+        "cash_usage": "High"
+      },
+      "KE": {
+        "popular_methods": ["M-Pesa", "Cash"],
+        "mobile_money_dominant": true,
+        "digital_payment_types": ["custom"],
+        "cash_usage": "Moderate"
+      },
+      "BD": {
+        "popular_methods": ["bKash", "Cash", "Nagad"],
+        "mobile_money_growing": true,
+        "digital_payment_types": ["custom"],
+        "cash_usage": "High"
+      }
+    },
+    
+    "marketplace_adoption": {
+      "MY": {
+        "dominant_platforms": ["GrabFood", "ShopeeFood", "FoodPanda"],
+        "adoption_rate": "High in urban areas",
+        "channel_preferences": ["10", "11", "12"]
+      },
+      "SG": {
+        "dominant_platforms": ["GrabFood", "FoodPanda", "Deliveroo"],
+        "adoption_rate": "Very High",
+        "channel_preferences": ["10", "12"]
+      },
+      "TH": {
+        "dominant_platforms": ["GrabFood", "FoodPanda", "ShopeeFood"],
+        "adoption_rate": "High",
+        "channel_preferences": ["10", "11", "12"]
+      },
+      "PH": {
+        "dominant_platforms": ["GrabFood", "FoodPanda"],
+        "adoption_rate": "Growing rapidly",
+        "channel_preferences": ["10", "12"]
+      }
+    },
+    
+    "employee_structures": {
+      "hierarchy_patterns": {
+        "small_business": ["owner", "cashier"],
+        "medium_business": ["manager", "backoffice", "cashier"],
+        "large_business": ["manager", "backoffice", "limitbackoffice", "cashier"],
+        "multi_store": ["accessallstores managers", "store-specific staff"]
+      },
+      "access_level_naming": {
+        "manager": "Full access including reports",
+        "backoffice": "Administrative functions",
+        "limitbackoffice": "Restricted admin access",
+        "cashier": "POS operations only"
+      }
+    },
+    
+    "promotion_patterns": {
+      "MY": {
+        "common_types": ["percentage_discount", "buy_x_get_y"],
+        "typical_discount_range": "5-20%",
+        "festival_promotions": ["Hari Raya", "CNY", "Deepavali"]
+      },
+      "SG": {
+        "common_types": ["percentage_discount", "fixed_amount"],
+        "typical_discount_range": "10-30%",
+        "festival_promotions": ["CNY", "GSS", "Black Friday"]
+      },
+      "TH": {
+        "common_types": ["buy_x_get_y", "percentage_discount"],
+        "typical_discount_range": "10-50%",
+        "festival_promotions": ["Songkran", "Loy Krathong"]
+      },
+      "PH": {
+        "common_types": ["percentage_discount", "bundle_deals"],
+        "typical_discount_range": "10-30%",
+        "festival_promotions": ["Christmas", "Holy Week"]
+      }
+    },
+    
+    "timezones": {
+      "MY": "Asia/Kuala_Lumpur",
+      "SG": "Asia/Singapore",
+      "CN": "Asia/Shanghai",
+      "TH": "Asia/Bangkok",
+      "PH": "Asia/Manila",
+      "BD": "Asia/Dhaka",
+      "KE": "Africa/Nairobi"
+    },
+    
+    "business_hours": {
+      "retail": {
+        "typical_open": "10:00",
+        "typical_close": "22:00",
+        "peak_hours": ["12:00-14:00", "18:00-20:00"]
+      },
+      "cafe": {
+        "typical_open": "08:00",
+        "typical_close": "22:00",
+        "peak_hours": ["10:00-11:00", "15:00-17:00"]
+      },
+      "restaurant": {
+        "typical_open": "11:00",
+        "typical_close": "23:00",
+        "peak_hours": ["12:00-14:00", "19:00-21:00"]
+      },
+      "f&b": {
+        "typical_open": "11:00",
+        "typical_close": "23:00",
+        "peak_hours": ["12:00-14:00", "19:00-21:00"]
+      }
+    },
+    
+    "business_types": {
+      "discovered_values": ["retail", "cafe", "restaurant", "Retail"],
+      "normalized_mapping": {
+        "retail": "retail",
+        "Retail": "retail",
+        "cafe": "cafe", 
+        "restaurant": "restaurant",
+        "f&b": ["cafe", "restaurant"]
+      }
+    },
+    
+    "fiscal_periods": {
+      "default": "Calendar year (Jan-Dec)",
+      "common_alternatives": [
+        "April-March",
+        "July-June",
+        "October-September"
+      ]
+    }
+  },
+  
+  "intent_patterns": {
+    "question_types": {
+      "metric_value": {
+        "patterns": ["what is", "how much", "total", "show me"],
+        "response_type": "single value or summary"
+      },
+      "comparison": {
+        "patterns": ["compare", "vs", "versus", "difference between"],
+        "response_type": "side by side with variance"
+      },
+      "trend": {
+        "patterns": ["trend", "over time", "growth", "trajectory"],
+        "response_type": "time series"
+      },
+      "ranking": {
+        "patterns": ["top", "best", "worst", "highest", "lowest"],
+        "response_type": "ordered list"
+      },
+      "breakdown": {
+        "patterns": ["by", "breakdown", "split by", "categorize"],
+        "response_type": "grouped results"
+      }
+    },
+    
+    "output_hints": {
+      "visualization_cues": {
+        "chart|graph": "Prepare for visualization",
+        "list|table": "Tabular format",
+        "summary": "Key metrics only",
+        "detailed": "Include all fields"
+      },
+      
+      "format_preferences": {
+        "percentage": "Format as percent",
+        "currency": "Format with currency symbol",
+        "rounded": "Round to whole numbers"
+      }
+    }
+  },
+  
+  "confidence_scoring": {
+    "high_confidence": {
+      "criteria": [
+        "Explicit metric names used",
+        "Clear time range specified",
+        "No ambiguous terms"
+      ],
+      "action": "Execute query directly"
+    },
+    
+    "medium_confidence": {
+      "criteria": [
+        "Common patterns recognized",
+        "Some assumptions needed",
+        "Standard defaults applicable"
+      ],
+      "action": "Execute with note about assumptions"
+    },
+    
+    "low_confidence": {
+      "criteria": [
+        "Multiple valid interpretations",
+        "Missing critical information",
+        "Unusual request pattern"
+      ],
+      "action": "Request clarification or provide options"
+    }
+  },
+  
+  "marketplace_integration": {
+    "platforms": {
+      "grab": {
+        "tag_identifier": "grab",
+        "product_fields": ["grabfoodprice", "isongrabfood"],
+        "common_usage": "Food delivery integration"
+      },
+      "shopee": {
+        "tag_identifier": "shopee",
+        "product_fields": ["shopeefoodprice", "isonshopeefood"],
+        "common_usage": "E-commerce and food delivery"
+      },
+      "foodpanda": {
+        "tag_identifier": "foodpanda",
+        "product_fields": ["foodpandaprice", "isonfoodpanda"],
+        "common_usage": "Food delivery integration"
+      },
+      "beep": {
+        "identifier_fields": ["isonbeep", "beepbrandname", "beepstorenamelocationsuffix"],
+        "common_usage": "StoreHub's own delivery platform"
+      }
+    },
+    "common_patterns": {
+      "tag_format": "comma-separated lowercase (e.g., 'grab,shopee')",
+      "api_products": "Tagged as 'auto-tag' or category 'api-new+category'"
+    }
+  },
+  
+  "data_patterns": {
+    "id_formats": {
+      "primary_key": "{business}_{mongoid}",
+      "example": "kamdar_676410f6cdc3700007bbf161",
+      "mongoid_length": 24,
+      "foreign_key_suffix": "_foreignkey"
+    },
+    "null_handling": {
+      "pattern": "Empty strings used instead of NULL for most optional fields",
+      "exceptions": ["Numeric fields use proper NULL"]
+    },
+    "common_statuses": {
+      "subscription": ["Active", "Trial", "Expired", ""],
+      "transaction_type": ["Sale", "Return"],
+      "payment_method": ["Cash", ""],
+      "payment_option_type": ["custom", "qrCode", "NFC"],
+      "promotion_type": ["merchant", "universal"],
+      "campaign_status": ["completed", "failed", "pending", "processing"]
+    }
+  },
+  
+  "multi_channel_insights": {
+    "channel_distribution": {
+      "traditional_retail": {
+        "channels": ["0"],
+        "characteristics": "In-store POS transactions",
+        "payment_preferences": ["cash", "cards", "custom"]
+      },
+      "self_service": {
+        "channels": ["3"],
+        "characteristics": "QR code ordering in-store",
+        "payment_preferences": ["qrCode", "digital wallets"],
+        "adoption": "High in MY, SG; Growing in TH, PH"
+      },
+      "online_direct": {
+        "channels": ["1"],
+        "characteristics": "Brand's own online store",
+        "payment_preferences": ["cards", "digital wallets"]
+      },
+      "marketplace": {
+        "channels": ["10", "11", "12", "13"],
+        "characteristics": "Third-party delivery platforms",
+        "payment_handled_by": "Platform provider"
+      }
+    },
+    "channel_performance_indicators": {
+      "pos_channel": {
+        "avg_transaction_value": "Typically highest",
+        "customer_loyalty": "Highest repeat rate",
+        "operational_hours": "Limited to store hours"
+      },
+      "qr_channel": {
+        "adoption_metrics": "Track QR vs POS ratio",
+        "efficiency": "Reduced queue times",
+        "avg_order_size": "Often larger than POS"
+      },
+      "marketplace_channels": {
+        "commission_impact": "15-30% platform fees",
+        "order_volume": "High during meal times",
+        "customer_acquisition": "New customer source"
+      }
+    }
+  },
+  
+  "operational_insights": {
+    "payment_method_evolution": {
+      "cash_dominant_markets": ["PH", "BD", "parts of MY"],
+      "digital_first_markets": ["SG", "CN", "urban MY"],
+      "qr_payment_growth": {
+        "highest": ["CN", "SG"],
+        "rapid_growth": ["MY", "TH"],
+        "emerging": ["PH", "KE", "BD"]
+      }
+    },
+    "employee_patterns": {
+      "small_operations": {
+        "typical_count": "1-5 employees",
+        "common_structure": "Owner + cashiers",
+        "access_pattern": "Simple cashier access"
+      },
+      "medium_operations": {
+        "typical_count": "6-20 employees",
+        "common_structure": "Manager + backoffice + cashiers",
+        "access_pattern": "Role-based hierarchy"
+      },
+      "large_operations": {
+        "typical_count": "20+ employees",
+        "common_structure": "Multi-level management",
+        "access_pattern": "Complex permissions, multi-store"
+      }
+    },
+    "tax_complexity": {
+      "simple_systems": ["SG", "MY"],
+      "complex_systems": ["PH", "TH"],
+      "special_considerations": {
+        "PH": "Basic necessities exemptions",
+        "MY": "SST vs GST transition history",
+        "TH": "VAT inclusive pricing standard"
+      }
+    }
+  },
+  
+  "learning_patterns": {
+    "common_followups": {
+      "after_total": ["breakdown by category", "compare to last period"],
+      "after_list": ["export to CSV", "filter further"],
+      "after_trend": ["forecast next period", "identify anomalies"]
+    },
+    
+    "user_preferences": {
+      "track": [
+        "Preferred time ranges",
+        "Common groupings",
+        "Metric preferences (gross vs net)"
+      ],
+      "adapt": "Use historical choices as defaults"
+    }
+  }
+}

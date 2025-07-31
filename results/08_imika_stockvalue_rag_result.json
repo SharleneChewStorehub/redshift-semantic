@@ -1,0 +1,841 @@
+{
+  "file_name": "08_imika_stockvalue.sql",
+  "timestamp": "/Users/sharlenechew/redshift-semantic",
+  "business_question": "I need to get the current inventory valuation for the merchant 'imikaempiresdnbhd'. Can you give me a report that shows the total monetary value of all stock on hand for each of their stores, based on the latest inventory levels?",
+  "golden_sql": "with s as (\nselect distinct\n    bs._id,\n    REGEXP_REPLACE (REGEXP_REPLACE (bs.name, '&#39;', ''''), '%7C;', ' - ') as storename\nfrom storehub_mongo.businesses b\nleft join storehub_mongo.businesses__stores bs\n    on b._id = bs.businesses_foreignkey\nwhere b.name = 'imikaempiresdnbhd'\n    --and bs._id in ('5a7815aecfe019834b13c699','65c4e47bff562e00072771b8','610c9bfd4be17100065080a2')\n),\n\np as (\nSELECT distinct\n    a.original_id,\n    a.cost\n        \nfrom storehub_mongo.products a \n    \nleft join storehub_mongo.businesses b \n    on a.business = b.\"name\" \n        \nleft join storehub_mongo.businesses__stores c \n    on b.\"_id\" = c.businesses_foreignkey \n    \n/*left join storehub_mongo.serialnumbers s\n    on s.business = a.business\n    and s.productid = a.original_id*/\n        \nwhere a.isdeleted is not true \n    and a.trackInventory is true \n    and a.inventorytype <> 'Composite'\n    and a.business ='imikaempiresdnbhd'      \n    --and c.\"_id\" in ('5a7815aecfe019834b13c699','65c4e47bff562e00072771b8','610c9bfd4be17100065080a2')\n    and (a.productType = 'Simple' or a.parentProductId <> '' or a.parentProductId is not null or a.isChild is true)\n),\n\nse as (\nselect \n    s.productid, \n    s.storeid, \n    count(*) as \"count\"\nfrom storehub_mongo.serialnumbers s\nwhere s.business = 'imikaempiresdnbhd'\ngroup by 1,2\n)\n\nselect \n    tmp.storename,\n    sum(tmp.\"quantityonhand\") as total_items,\n    sum(case \n            when tmp.\"quantityonhand\" is not null then cast(tmp.\"quantityonhand\" as float) * cast(tmp.cost as float)\n            else 0\n        end) as total_value\nfrom (\n    select \n        s.storename,\n        i.productid,\n        case \n            when i.isserialized = true then se.\"count\"\n            else i.quantityonhand\n        end as \"quantityonhand\",\n        p.cost\n        /*case \n            when \"quantityonhand\" is not null then cast(\"quantityonhand\" as float) * cast(p.cost as float)\n            else 0\n        end as value*/\n        \n    from storehub_mongo.inventories i\n    \n    left join s\n        on i.storeid = s._id\n    \n    left join p\n        on i.productid = p.original_id\n    \n    left join se\n        on se.productid = i.productid\n        and se.storeid = i.storeid\n        \n    where i.productid in (select p.original_id from p)\n        and i.business = 'imikaempiresdnbhd'\n        --and i.storeid in ('5a7815aecfe019834b13c699','65c4e47bff562e00072771b8','610c9bfd4be17100065080a2')\n        --and i.productid in ('66ed3011df00fc00071d5acc','67074fef4a53790007f8212e')\n    ) tmp\n\ngroup by 1\norder by 2 DESC",
+  "ai_generated_sql": "WITH merchant_stores AS (\n  SELECT\n    bs._id AS store_id,\n    REGEXP_REPLACE(bs.name, '&#39;', '''') AS store_name\n  FROM\n    storehub_mongo.businesses AS b\n    JOIN storehub_mongo.businesses__stores AS bs ON b._id = bs.businesses_foreignkey\n  WHERE\n    b.name = 'imikaempiresdnbhd'\n),\nproduct_costs AS (\n  SELECT\n    p.original_id AS product_id,\n    p.cost\n  FROM\n    storehub_mongo.products AS p\n  WHERE\n    p.business = 'imikaempiresdnbhd'\n    AND p.isdeleted IS NOT TRUE\n    AND p.trackInventory IS TRUE\n    AND p.inventorytype <> 'Composite'\n),\nserialized_stock AS (\n  SELECT\n    s.productid,\n    s.storeid,\n    COUNT(*) AS serialized_quantity\n  FROM\n    storehub_mongo.serialnumbers AS s\n  WHERE\n    s.business = 'imikaempiresdnbhd'\n  GROUP BY\n    s.productid,\n    s.storeid\n)\nSELECT\n  ms.store_name,\n  SUM(\n    COALESCE(\n      CASE\n        WHEN i.isserialized = TRUE THEN ss.serialized_quantity\n        ELSE i.quantityonhand\n      END,\n      0\n    ) * pc.cost\n  ) AS total_inventory_value\nFROM\n  storehub_mongo.inventories AS i\n  JOIN merchant_stores AS ms ON i.storeid = ms.store_id\n  JOIN product_costs AS pc ON i.productid = pc.product_id\n  LEFT JOIN serialized_stock AS ss ON i.productid = ss.productid AND i.storeid = ss.storeid\nWHERE\n  i.business = 'imikaempiresdnbhd'\nGROUP BY\n  ms.store_name\nORDER BY\n  total_inventory_value DESC",
+  "api_result": {
+    "success": true,
+    "status_code": 202,
+    "data": {
+      "data": {
+        "rows": [
+          [
+            "WAREHOUSE (STOCK DEFECT)",
+            3868022.2599999993
+          ],
+          [
+            "WAREHOUSE 3",
+            1527778.7399999998
+          ],
+          [
+            "WAREHOUSE",
+            1344913.24
+          ],
+          [
+            "WARRANTY SEND TO TAZTECH",
+            581959.48
+          ],
+          [
+            "STOCK LOSS 2024",
+            442174.87
+          ],
+          [
+            "SEND TO ZARA REPAIRING",
+            185050.0
+          ],
+          [
+            "IMIKA KENINGAU",
+            152065.65000000002
+          ],
+          [
+            "WARRANTY SEND TO PLANET IT",
+            97685.0
+          ],
+          [
+            "Stock Lost Warehouse",
+            96004.82999999997
+          ],
+          [
+            "WARRANTY SEND TO VIVA",
+            89531.1
+          ],
+          [
+            "WARRANTY SEND TO J&I",
+            86370.0
+          ],
+          [
+            "IMIKA HQ IPOH",
+            86036.07
+          ],
+          [
+            "IMIKA SUNGAI PETANI",
+            82227.17
+          ],
+          [
+            "Company Assets",
+            75131.73
+          ],
+          [
+            "IMIKA KUANTAN",
+            71062.22
+          ],
+          [
+            "IMIKA KOTA SAMARAHAN",
+            70641.61
+          ],
+          [
+            "IMIKA JB",
+            66937.76999999999
+          ],
+          [
+            "WARRANTY SEND TO INFINITY GLOBAL",
+            63523.0
+          ],
+          [
+            "WARRANTY SEND TO JOY HOMING",
+            62839.53999999999
+          ],
+          [
+            "IMIKA KUALA TERENGGANU",
+            59282.73
+          ],
+          [
+            "IMIKA KOTA BHARU",
+            55929.0
+          ],
+          [
+            "IMIKA KULIM",
+            53300.549999999996
+          ],
+          [
+            "IMIKA BATU PAHAT",
+            53255.47
+          ],
+          [
+            "IMIKA PASIR GUDANG",
+            51923.73000000001
+          ],
+          [
+            "IMIKA KLUANG",
+            51119.88
+          ],
+          [
+            "IMIKA MERU RAYA",
+            49746.67
+          ],
+          [
+            "IMIKA KOTA KINABALU",
+            49307.439999999995
+          ],
+          [
+            "IMIKA KLTS",
+            48847.399999999994
+          ],
+          [
+            "IMIKA JITRA",
+            48061.41
+          ],
+          [
+            "IMIKA MELAKA",
+            47729.11
+          ],
+          [
+            "IMIKA TELUK PANGLIMA GARANG",
+            46662.9
+          ],
+          [
+            "IMIKA TANAH MERAH",
+            45033.56999999999
+          ],
+          [
+            "IMIKA SEREMBAN",
+            44625.33
+          ],
+          [
+            "IMIKA SEGAMAT",
+            42474.71000000001
+          ],
+          [
+            "IMIKA PENANG",
+            42304.41
+          ],
+          [
+            "IMIKA SHAH ALAM",
+            42039.23
+          ],
+          [
+            "IMIKA TAIPING",
+            40931.729999999996
+          ],
+          [
+            "IMIKA MANJUNG",
+            40417.94
+          ],
+          [
+            "IMIKA KULAI",
+            40050.049999999996
+          ],
+          [
+            "IMIKA PUNCAK ALAM",
+            34781.5
+          ],
+          [
+            "IMIKA BANGI",
+            33475.36
+          ],
+          [
+            "IMIKA BALING",
+            33305.05
+          ],
+          [
+            "IMIKA JERTEH",
+            33137.47
+          ],
+          [
+            "IMIKA SENAWANG",
+            30986.829999999998
+          ],
+          [
+            "IMIKA TEMERLOH",
+            30979.63
+          ],
+          [
+            "IMIKA KOTA DAMANSARA",
+            29662.84
+          ],
+          [
+            "STOCK LOSS MASJID TANAH & KULIM ROBBERY",
+            28188.76
+          ],
+          [
+            "WARRANTY SEND TO WKG",
+            27185.0
+          ],
+          [
+            "Stock Lost Manjung",
+            26398.45
+          ],
+          [
+            "IMIKA CYBERJAYA",
+            24035.37
+          ],
+          [
+            "IMIKA MIRI",
+            21677.94
+          ],
+          [
+            "WARRANTY SEND TO DQ TECH RESOURCES",
+            20450.0
+          ],
+          [
+            "IMIKA E COMMERCE",
+            16754.86
+          ],
+          [
+            "RMA",
+            14672.92
+          ],
+          [
+            "BORNEO ROCK FESTIVAL",
+            10874.910000000003
+          ],
+          [
+            "WARRANTY SEND TO QUADCO",
+            4460.0
+          ],
+          [
+            "IMIKA KLANG",
+            1678.84
+          ],
+          [
+            "IMIKA RAUB",
+            1540.0
+          ],
+          [
+            "IMIKA KEMAMAN",
+            830.0
+          ],
+          [
+            "IMIKA LIMBANG",
+            438.16999999999996
+          ],
+          [
+            "IMIKA MARA DIGITAL",
+            354.33000000000004
+          ],
+          [
+            "IMIKA MUKAH",
+            275.51
+          ],
+          [
+            "IMIKA LAHAD DATU",
+            202.73
+          ],
+          [
+            "IMIKA SERI KEMBANGAN",
+            199.0
+          ],
+          [
+            "IMIKA RANAU",
+            165.0
+          ],
+          [
+            "IMIKA JASIN",
+            150.0
+          ],
+          [
+            "IMIKA SKUDAI",
+            100.0
+          ],
+          [
+            "IMIKA PAPAR",
+            94.0
+          ],
+          [
+            "IMIKA LANGKAWI",
+            84.95
+          ],
+          [
+            "IMIKA TUARAN",
+            80.0
+          ],
+          [
+            "IMIKA MERLIMAU",
+            72.63
+          ],
+          [
+            "WARRANTY SEND TO FUSION",
+            40.0
+          ],
+          [
+            "IMIKA NILAI",
+            3.65
+          ],
+          [
+            "D'E Tech",
+            0.0
+          ],
+          [
+            "IMIKA PONTIAN",
+            0.0
+          ],
+          [
+            "IMIKA KUDAT",
+            0.0
+          ],
+          [
+            "Warranty send to Bit Byte",
+            0.0
+          ],
+          [
+            "IMIKA BAHAU",
+            0.0
+          ],
+          [
+            "IMIKA KUALA LIPIS",
+            0.0
+          ],
+          [
+            "IMIKA SERI ISKANDAR",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO IDR REPAIR AND SERVICE",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO RENTWISE",
+            0.0
+          ],
+          [
+            "Sparepart 2018",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO SG MOBILE",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO GENESYS",
+            0.0
+          ],
+          [
+            "IMIKA SRI AMAN",
+            0.0
+          ],
+          [
+            "IMIKA SERIAN",
+            0.0
+          ],
+          [
+            "IMIKA ALOR SETAR",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO SIMPLE SELL ENTERPRISE",
+            0.0
+          ],
+          [
+            "IMIKA MASJID TANAH",
+            0.0
+          ],
+          [
+            "IMIKA JERANTUT",
+            0.0
+          ],
+          [
+            "IMIKA MERSING",
+            0.0
+          ],
+          [
+            "IMIKA TAMPIN",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO TOPIX",
+            0.0
+          ],
+          [
+            "IMIKA SEMPORNA",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO LUMINA",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO A2C",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO SPECIALIST ALFA TECH",
+            0.0
+          ],
+          [
+            "IMIKA TEBING",
+            0.0
+          ],
+          [
+            "SPECIALIST REPAIR BOSSKU",
+            0.0
+          ],
+          [
+            "IMIKA PARIT BUNTAR",
+            0.0
+          ],
+          [
+            "IMIKA KUALA SELANGOR",
+            0.0
+          ],
+          [
+            "SEND TO REPAIR VIVA",
+            0.0
+          ],
+          [
+            "IMIKA SANDAKAN",
+            0.0
+          ],
+          [
+            "IMIKA BINTULU",
+            0.0
+          ],
+          [
+            "IMIKA KOTA TINGGI",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO TMT",
+            0.0
+          ],
+          [
+            "IMIKA ALMA",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO SMART SOLUTION",
+            0.0
+          ],
+          [
+            "IMIKA SUNGAI SIPUT",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO BUILD TECH SUPPLY",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO JESAN TRADE INT (JTI)",
+            0.0
+          ],
+          [
+            "DISPOSE ITEM",
+            0.0
+          ],
+          [
+            "Digital Store",
+            0.0
+          ],
+          [
+            "IMIKA ANGSANA",
+            0.0
+          ],
+          [
+            "IMIKA KOTA KEMUNING",
+            0.0
+          ],
+          [
+            "IMIKA KOTA WARISAN",
+            0.0
+          ],
+          [
+            "IMIKA WANGSA MAJU",
+            0.0
+          ],
+          [
+            "SPECIALIST ANYTIME",
+            0.0
+          ],
+          [
+            "FAULTY ITEM",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO RASCOTEC MALAYSIA",
+            0.0
+          ],
+          [
+            "WARRANTY SEND EXPORTXCEL",
+            0.0
+          ],
+          [
+            "IMIKA PORT DICKSON",
+            0.0
+          ],
+          [
+            "Warranty send to suhail",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO CASTERLY",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO ZARA",
+            0.0
+          ],
+          [
+            "PC & NOTEBOOK SERVICES",
+            0.0
+          ],
+          [
+            "SEND TO SPECIALIST CL MOBILE",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO ASK COMPUTER",
+            0.0
+          ],
+          [
+            "IMIKA GUA MUSANG",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO FAMOUS FRIENDS",
+            0.0
+          ],
+          [
+            "IMIKA SIMPANG RENGGAM",
+            0.0
+          ],
+          [
+            "WARRANTY SEND TO RPU DYNAMIC SDN. BHD.",
+            0.0
+          ],
+          [
+            "IMIKA PADANG SERAI",
+            0.0
+          ],
+          [
+            "IMIKA PARIT RAJA",
+            -1.08
+          ],
+          [
+            "IMIKA TANJUNG MALIM",
+            -2.71
+          ],
+          [
+            "IMIKA BUKIT TINGGI",
+            -3.61
+          ],
+          [
+            "IMIKA BATU GAJAH",
+            -5.0
+          ],
+          [
+            "IMIKA JENGKA",
+            -5.0
+          ],
+          [
+            "IMIKA METROCITY",
+            -9.0
+          ],
+          [
+            "IMIKA PANTAI REMIS",
+            -9.0
+          ],
+          [
+            "IMIKA KUCHING",
+            -9.0
+          ],
+          [
+            "IMIKA BANDAR BARU UDA",
+            -10.0
+          ],
+          [
+            "IMIKA GERIK",
+            -12.4
+          ],
+          [
+            "IMIKA NIBONG TEBAL",
+            -15.0
+          ],
+          [
+            "IMIKA PUCHONG",
+            -17.61
+          ],
+          [
+            "IMIKA KANGAR",
+            -18.0
+          ],
+          [
+            "IMIKA MUADZAM",
+            -18.0
+          ],
+          [
+            "IMIKA KOTA BELUD",
+            -27.0
+          ],
+          [
+            "IMIKA KAMPAR",
+            -27.0
+          ],
+          [
+            "IMIKA KOTA MARUDU",
+            -27.4
+          ],
+          [
+            "IMIKA BAYAN POINT",
+            -27.64
+          ],
+          [
+            "IMIKA TAWAU",
+            -36.69
+          ],
+          [
+            "IMIKA TAPAH",
+            -50.0
+          ],
+          [
+            "IMIKA KAJANG",
+            -60.0
+          ],
+          [
+            "IMIKA LABUAN",
+            -62.9
+          ],
+          [
+            "IMIKA BEAUFORT",
+            -63.0
+          ],
+          [
+            "IMIKA SIBU",
+            -64.0
+          ],
+          [
+            "IMIKA GONG BADAK",
+            -67.37
+          ],
+          [
+            "IMIKA PEKAN",
+            -70.0
+          ],
+          [
+            "IMIKA RAWANG",
+            -72.0
+          ],
+          [
+            "IMIKA CHANGLUN",
+            -80.0
+          ],
+          [
+            "IMIKA BESUT",
+            -81.0
+          ],
+          [
+            "IMIKA TELUK INTAN",
+            -91.08
+          ],
+          [
+            "IMIKA PASIR MAS",
+            -99.0
+          ],
+          [
+            "IMIKA KUALA KANGSAR",
+            -100.0
+          ],
+          [
+            "IMIKA CHERAS",
+            -111.0
+          ],
+          [
+            "IMIKA SEMENYIH",
+            -124.74
+          ],
+          [
+            "IMIKA SUNGAI BESAR",
+            -139.0
+          ],
+          [
+            "IMIKA PASIR PUTEH",
+            -150.61
+          ],
+          [
+            "IMIKA STATION 18",
+            -182.0
+          ],
+          [
+            "IMIKA JELAWAT",
+            -193.37
+          ],
+          [
+            "IMIKA MUAR",
+            -228.0
+          ],
+          [
+            "IMIKA DUNGUN",
+            -241.85
+          ],
+          [
+            "IMIKA BERA",
+            -307.0
+          ],
+          [
+            "IMIKA SUNGAI PETANI SELATAN",
+            -369.0
+          ]
+        ],
+        "cols": [
+          {
+            "display_name": "store_name",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "store_name",
+              {
+                "base-type": "type/Text"
+              }
+            ],
+            "name": "store_name",
+            "base_type": "type/Text",
+            "effective_type": "type/Text"
+          },
+          {
+            "display_name": "total_inventory_value",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "total_inventory_value",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "total_inventory_value",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          }
+        ],
+        "native_form": {
+          "query": "WITH merchant_stores AS (\n  SELECT\n    bs._id AS store_id,\n    REGEXP_REPLACE(bs.name, '&#39;', '''') AS store_name\n  FROM\n    storehub_mongo.businesses AS b\n    JOIN storehub_mongo.businesses__stores AS bs ON b._id = bs.businesses_foreignkey\n  WHERE\n    b.name = 'imikaempiresdnbhd'\n),\nproduct_costs AS (\n  SELECT\n    p.original_id AS product_id,\n    p.cost\n  FROM\n    storehub_mongo.products AS p\n  WHERE\n    p.business = 'imikaempiresdnbhd'\n    AND p.isdeleted IS NOT TRUE\n    AND p.trackInventory IS TRUE\n    AND p.inventorytype <> 'Composite'\n),\nserialized_stock AS (\n  SELECT\n    s.productid,\n    s.storeid,\n    COUNT(*) AS serialized_quantity\n  FROM\n    storehub_mongo.serialnumbers AS s\n  WHERE\n    s.business = 'imikaempiresdnbhd'\n  GROUP BY\n    s.productid,\n    s.storeid\n)\nSELECT\n  ms.store_name,\n  SUM(\n    COALESCE(\n      CASE\n        WHEN i.isserialized = TRUE THEN ss.serialized_quantity\n        ELSE i.quantityonhand\n      END,\n      0\n    ) * pc.cost\n  ) AS total_inventory_value\nFROM\n  storehub_mongo.inventories AS i\n  JOIN merchant_stores AS ms ON i.storeid = ms.store_id\n  JOIN product_costs AS pc ON i.productid = pc.product_id\n  LEFT JOIN serialized_stock AS ss ON i.productid = ss.productid AND i.storeid = ss.storeid\nWHERE\n  i.business = 'imikaempiresdnbhd'\nGROUP BY\n  ms.store_name\nORDER BY\n  total_inventory_value DESC"
+        },
+        "results_timezone": "Asia/Kuala_Lumpur",
+        "requested_timezone": "Asia/Kuala_Lumpur",
+        "results_metadata": {
+          "columns": [
+            {
+              "display_name": "store_name",
+              "field_ref": [
+                "field",
+                "store_name",
+                {
+                  "base-type": "type/Text"
+                }
+              ],
+              "name": "store_name",
+              "base_type": "type/Text",
+              "effective_type": "type/Text",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 176,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Text": {
+                    "percent-json": 0.0,
+                    "percent-url": 0.0,
+                    "percent-email": 0.0,
+                    "percent-state": 0.0,
+                    "average-length": 17.227272727272727
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "total_inventory_value",
+              "field_ref": [
+                "field",
+                "total_inventory_value",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "total_inventory_value",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 111,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": -369.0,
+                    "q1": -41.348007084650504,
+                    "q3": 30983.23,
+                    "max": 3868022.2599999993,
+                    "sd": 331339.40619779855,
+                    "avg": 59244.57488636363
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "insights": null
+      },
+      "cached": false,
+      "database_id": 2,
+      "started_at": "2025-07-30T15:52:54.999443Z",
+      "json_query": {
+        "database": 2,
+        "type": "native",
+        "native": {
+          "query": "WITH merchant_stores AS (\n  SELECT\n    bs._id AS store_id,\n    REGEXP_REPLACE(bs.name, '&#39;', '''') AS store_name\n  FROM\n    storehub_mongo.businesses AS b\n    JOIN storehub_mongo.businesses__stores AS bs ON b._id = bs.businesses_foreignkey\n  WHERE\n    b.name = 'imikaempiresdnbhd'\n),\nproduct_costs AS (\n  SELECT\n    p.original_id AS product_id,\n    p.cost\n  FROM\n    storehub_mongo.products AS p\n  WHERE\n    p.business = 'imikaempiresdnbhd'\n    AND p.isdeleted IS NOT TRUE\n    AND p.trackInventory IS TRUE\n    AND p.inventorytype <> 'Composite'\n),\nserialized_stock AS (\n  SELECT\n    s.productid,\n    s.storeid,\n    COUNT(*) AS serialized_quantity\n  FROM\n    storehub_mongo.serialnumbers AS s\n  WHERE\n    s.business = 'imikaempiresdnbhd'\n  GROUP BY\n    s.productid,\n    s.storeid\n)\nSELECT\n  ms.store_name,\n  SUM(\n    COALESCE(\n      CASE\n        WHEN i.isserialized = TRUE THEN ss.serialized_quantity\n        ELSE i.quantityonhand\n      END,\n      0\n    ) * pc.cost\n  ) AS total_inventory_value\nFROM\n  storehub_mongo.inventories AS i\n  JOIN merchant_stores AS ms ON i.storeid = ms.store_id\n  JOIN product_costs AS pc ON i.productid = pc.product_id\n  LEFT JOIN serialized_stock AS ss ON i.productid = ss.productid AND i.storeid = ss.storeid\nWHERE\n  i.business = 'imikaempiresdnbhd'\nGROUP BY\n  ms.store_name\nORDER BY\n  total_inventory_value DESC"
+        },
+        "middleware": {
+          "js-int-to-string?": true,
+          "add-default-userland-constraints?": true
+        }
+      },
+      "average_execution_time": null,
+      "status": "completed",
+      "context": "ad-hoc",
+      "row_count": 176,
+      "running_time": 14254
+    },
+    "row_count": 176,
+    "query": "WITH merchant_stores AS (\n  SELECT\n    bs._id AS store_id,\n    REGEXP_REPLACE(bs.name, '&#39;', '''') AS store_name\n  FROM\n    storehub_mongo.businesses AS b\n    JOIN storehub_mongo.businesses__stores AS bs ON b._id = bs.businesses_foreignkey\n  WHERE\n    b.name = 'imikaempiresdnbhd'\n),\nproduct_costs AS (\n  SELECT\n    p.original_id AS product_id,\n    p.cost\n  FROM\n    storehub_mongo.products AS p\n  WHERE\n    p.business = 'imikaempiresdnbhd'\n    AND p.isdeleted IS NOT TRUE\n    AND p.trackInventory IS TRUE\n    AND p.inventorytype <> 'Composite'\n),\nserialized_stock AS (\n  SELECT\n    s.productid,\n    s.storeid,\n    COUNT(*) AS serialized_quantity\n  FROM\n    storehub_mongo.serialnumbers AS s\n  WHERE\n    s.business = 'imikaempiresdnbhd'\n  GROUP BY\n    s.productid,\n    s.storeid\n)\nSELECT\n  ms.store_name,\n  SUM(\n    COALESCE(\n      CASE\n        WHEN i.isserialized = TRUE THEN ss.serialized_quantity\n        ELSE i.quantityonhand\n      END,\n      0\n    ) * pc.cost\n  ) AS total_inventory_value\nFROM\n  storehub_mongo.inventories AS i\n  JOIN merchant_stores AS ms ON i.storeid = ms.store_id\n  JOIN product_costs AS pc ON i.productid = pc.product_id\n  LEFT JOIN serialized_stock AS ss ON i.productid = ss.productid AND i.storeid = ss.storeid\nWHERE\n  i.business = 'imikaempiresdnbhd'\nGROUP BY\n  ms.store_name\nORDER BY\n  total_inventory_value DESC"
+  }
+}

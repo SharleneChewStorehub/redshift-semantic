@@ -1,0 +1,96 @@
+{
+  "version": "2.0.0",
+  "description": "Schema validation rules and mappings for SQL generation",
+  "last_updated": "2025-01-15",
+  
+  "validation_process": {
+    "steps": [
+      "1. Check table exists in schema files",
+      "2. Verify column names match exactly (case-sensitive)",
+      "3. Validate data types for operations",
+      "4. Apply mandatory filters from business_rules.json"
+    ]
+  },
+  
+  "common_column_mappings": {
+    "products": {
+      "name_variants": ["title", "name", "productname"],
+      "actual_column": "title",
+      "price_variants": ["sellingprice", "price", "saleprice"],
+      "actual_price": "sellingprice",
+      "sku_variants": ["skunumber", "sku", "skucode"],
+      "actual_sku": "skunumber"
+    },
+    "businesses": {
+      "name_variants": ["name", "businessname", "companyname"],
+      "actual_column": "name",
+      "type_variants": ["businesstype", "type", "category"],
+      "actual_type": "businesstype"
+    },
+    "transactionrecords": {
+      "id_variants": ["receiptnumber", "transactionid", "id"],
+      "actual_id": "receiptnumber",
+      "amount_variants": ["totalamount", "total", "amount"],
+      "actual_amount": "totalamount"
+    }
+  },
+  
+  "schema_location": {
+    "files": [
+      "storehub-table1.sql",
+      "storehub-table2.sql"
+    ],
+    "format": "INSERT INTO svv_columns (table_schema,table_name,column_name,data_type) VALUES",
+    "pattern": "('schema','table','column','type')"
+  },
+  
+  "validation_rules": {
+    "table_name_format": {
+      "rule": "Always use schema.table format",
+      "example": "storehub_mongo.products"
+    },
+    "column_case_sensitivity": {
+      "rule": "Column names are case-sensitive in queries",
+      "note": "Use exact case from schema"
+    },
+    "boolean_comparisons": {
+      "correct": "isdeleted != true",
+      "incorrect": "isdeleted = false",
+      "reason": "Handles NULL values correctly"
+    }
+  },
+  
+  "pre_query_checklist": [
+    {
+      "step": "Identify required tables",
+      "action": "grep 'storehub_mongo','tablename' in schema files"
+    },
+    {
+      "step": "Find exact column names",
+      "action": "grep table columns to get exact spelling and case"
+    },
+    {
+      "step": "Verify join columns exist",
+      "action": "Check both tables have the join column"
+    },
+    {
+      "step": "Apply mandatory filters",
+      "action": "Add business isolation and soft delete filters"
+    }
+  ],
+  
+  "common_mistakes": {
+    "wrong_column_names": {
+      "error": "Column p.name does not exist",
+      "fix": "Check actual column name - might be p.title"
+    },
+    "missing_schema": {
+      "error": "Relation 'businesses' does not exist",
+      "fix": "Use full name: storehub_mongo.businesses"
+    },
+    "case_sensitivity": {
+      "error": "Column 'sellingPrice' does not exist",
+      "fix": "Use lowercase: sellingprice"
+    }
+  }
+}

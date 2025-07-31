@@ -1,0 +1,142 @@
+{
+  "version": "2.0.0",
+  "description": "Complete worked examples demonstrating how to handle real-world queries",
+  "last_updated": "2025-01-15",
+  
+  "examples": [
+    {
+      "id": "daily_sales_trend",
+      "natural_language": "Show me daily sales for the last 2 weeks",
+      "intent_analysis": {
+        "metric": "sales → net_sales (default)",
+        "time_range": "last 2 weeks → past 14 days",
+        "granularity": "daily",
+        "output": "time series"
+      },
+      "sql_query": "SELECT \n  DATE_TRUNC('day', CONVERT_TIMEZONE(:tz, '0', createdtime)) as sale_date,\n  SUM(CASE WHEN type='Sale' THEN subtotal-discount ELSE 0 END) -\n  SUM(CASE WHEN type='Return' THEN ABS(subtotal) ELSE 0 END) as net_sales,\n  COUNT(DISTINCT CASE WHEN type='Sale' THEN receiptnumber END) as transactions\nFROM transactionrecords\nWHERE business = :business_id\n  AND isdeleted != true\n  AND type IN ('Sale', 'Return')\n  AND createdtime >= CURRENT_DATE - INTERVAL '14 days'\nGROUP BY 1\nORDER BY 1",
+      "parameters": {
+        "business_id": "Required from context",
+        "tz": "From business settings (e.g., 'Asia/Kuala_Lumpur')"
+      },
+      "explains": "Demonstrates timezone handling, net sales calculation, and relative date filtering"
+    },
+    
+    {
+      "id": "top_customers_by_value",
+      "natural_language": "Who are my top 10 customers this year?",
+      "intent_analysis": {
+        "entity": "customers",
+        "ranking": "top 10",
+        "metric": "implied lifetime value",
+        "time_range": "this year → YTD"
+      },
+      "sql_query": "WITH customer_sales AS (\n  SELECT \n    c.phone,\n    c.firstname || ' ' || c.lastname as customer_name,\n    COUNT(DISTINCT t.receiptnumber) as order_count,\n    SUM(t.totalamount) as total_spent,\n    MAX(t.createdtime) as last_purchase\n  FROM customers c\n  JOIN transactionrecords t ON c._id = t.customerid\n  WHERE c.business = :business_id\n    AND t.business = :business_id\n    AND t.type = 'Sale'\n    AND t.isdeleted != true\n    AND DATE_TRUNC('year', t.createdtime) = DATE_TRUNC('year', CURRENT_DATE)\n  GROUP BY c.phone, c.firstname, c.lastname\n)\nSELECT \n  customer_name,\n  phone,\n  order_count,\n  total_spent,\n  ROUND(total_spent / order_count, 2) as avg_order_value,\n  DATE(last_purchase) as last_purchase_date\nFROM customer_sales\nORDER BY total_spent DESC\nLIMIT 10",
+      "explains": "Shows customer joining, YTD filtering, and calculating derived metrics"
+    },
+    
+    {
+      "id": "sales_comparison",
+      "natural_language": "Compare this month's sales to last month by store",
+      "intent_analysis": {
+        "type": "comparison",
+        "metric": "sales",
+        "periods": ["this month", "last month"],
+        "grouping": "by store"
+      },
+      "sql_query": "WITH monthly_sales AS (\n  SELECT\n    s.name as store_name,\n    DATE_TRUNC('month', CONVERT_TIMEZONE(s.timezone, '0', t.createdtime)) as month,\n    SUM(CASE WHEN t.type='Sale' THEN t.subtotal-t.discount ELSE -ABS(t.subtotal) END) as net_sales\n  FROM transactionrecords t\n  JOIN businesses__stores s ON t.storeid = s._id\n  WHERE t.business = :business_id\n    AND t.isdeleted != true\n    AND t.type IN ('Sale', 'Return')\n    AND DATE_TRUNC('month', t.createdtime) >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')\n  GROUP BY s.name, s.timezone, 2\n)\nSELECT \n  store_name,\n  MAX(CASE WHEN month = DATE_TRUNC('month', CURRENT_DATE) THEN net_sales END) as this_month,\n  MAX(CASE WHEN month = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month') THEN net_sales END) as last_month,\n  ROUND(\n    ((MAX(CASE WHEN month = DATE_TRUNC('month', CURRENT_DATE) THEN net_sales END) -\n      MAX(CASE WHEN month = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month') THEN net_sales END)) /\n     NULLIF(MAX(CASE WHEN month = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month') THEN net_sales END), 0)\n    ) * 100, 2\n  ) as percent_change\nFROM monthly_sales\nGROUP BY store_name\nORDER BY this_month DESC",
+      "explains": "Period comparison pattern with percentage calculation and NULL safety"
+    },
+    
+    {
+      "id": "product_performance_breakdown",
+      "natural_language": "What products are selling best in each category?",
+      "intent_analysis": {
+        "entity": "products",
+        "ranking": "best selling",
+        "grouping": "by category",
+        "implicit": "recent timeframe"
+      },
+      "sql_query": "WITH product_sales AS (\n  SELECT \n    p.category,\n    p.name as product_name,\n    p.skuNumber as sku,\n    SUM(ti.quantity) as units_sold,\n    SUM(ti.amount) as revenue,\n    COUNT(DISTINCT t.receiptnumber) as transactions\n  FROM transactionrecords t\n  JOIN transaction_items ti ON t.receiptnumber = ti.transactionid\n  JOIN products p ON ti.productid = p._id\n  WHERE t.business = :business_id\n    AND t.type = 'Sale'\n    AND t.isdeleted != true\n    AND t.createdtime >= CURRENT_DATE - INTERVAL '30 days'\n  GROUP BY p.category, p.name, p.skuNumber\n),\nranked_products AS (\n  SELECT \n    *,\n    RANK() OVER (PARTITION BY category ORDER BY revenue DESC) as category_rank\n  FROM product_sales\n)\nSELECT \n  category,\n  product_name,\n  sku,\n  units_sold,\n  revenue,\n  transactions,\n  ROUND(revenue / units_sold, 2) as avg_price\nFROM ranked_products\nWHERE category_rank <= 5\nORDER BY category, category_rank",
+      "explains": "Multi-table joins, window functions for ranking within groups"
+    },
+    
+    {
+      "id": "customer_retention_cohort",
+      "natural_language": "Show me customer retention by monthly cohorts",
+      "intent_analysis": {
+        "type": "cohort analysis",
+        "metric": "retention",
+        "complex": true
+      },
+      "sql_query": "WITH customer_cohorts AS (\n  -- Get first purchase month for each customer\n  SELECT \n    customerid,\n    DATE_TRUNC('month', MIN(createdtime)) as cohort_month\n  FROM transactionrecords\n  WHERE business = :business_id\n    AND type = 'Sale'\n    AND customerid IS NOT NULL\n  GROUP BY customerid\n),\ncohort_activity AS (\n  -- Track activity by cohort and month\n  SELECT\n    c.cohort_month,\n    DATE_TRUNC('month', t.createdtime) as activity_month,\n    COUNT(DISTINCT c.customerid) as customers\n  FROM customer_cohorts c\n  JOIN transactionrecords t ON c.customerid = t.customerid\n  WHERE t.business = :business_id\n    AND t.type = 'Sale'\n  GROUP BY c.cohort_month, DATE_TRUNC('month', t.createdtime)\n),\ncohort_sizes AS (\n  -- Get initial cohort sizes\n  SELECT \n    cohort_month,\n    COUNT(DISTINCT customerid) as cohort_size\n  FROM customer_cohorts\n  GROUP BY cohort_month\n)\nSELECT \n  ca.cohort_month,\n  ca.activity_month,\n  DATEDIFF('month', ca.cohort_month, ca.activity_month) as months_since_first_purchase,\n  cs.cohort_size as initial_customers,\n  ca.customers as active_customers,\n  ROUND(ca.customers::FLOAT / cs.cohort_size * 100, 2) as retention_rate\nFROM cohort_activity ca\nJOIN cohort_sizes cs ON ca.cohort_month = cs.cohort_month\nWHERE ca.cohort_month >= CURRENT_DATE - INTERVAL '12 months'\nORDER BY ca.cohort_month, ca.activity_month",
+      "explains": "Complex cohort analysis pattern with retention calculation"
+    },
+    
+    {
+      "id": "hourly_performance",
+      "natural_language": "When are my busiest hours?",
+      "intent_analysis": {
+        "metric": "business/transactions",
+        "grouping": "by hour",
+        "implicit": "aggregate across days"
+      },
+      "sql_query": "WITH hourly_stats AS (\n  SELECT \n    EXTRACT(hour FROM CONVERT_TIMEZONE(:tz, '0', createdtime)) as hour_of_day,\n    COUNT(DISTINCT receiptnumber) as transactions,\n    SUM(totalamount) as sales,\n    COUNT(DISTINCT DATE(CONVERT_TIMEZONE(:tz, '0', createdtime))) as days_with_data\n  FROM transactionrecords\n  WHERE business = :business_id\n    AND type = 'Sale'\n    AND isdeleted != true\n    AND createdtime >= CURRENT_DATE - INTERVAL '30 days'\n  GROUP BY 1\n)\nSELECT \n  hour_of_day,\n  CASE \n    WHEN hour_of_day < 12 THEN hour_of_day || ' AM'\n    WHEN hour_of_day = 12 THEN '12 PM'\n    ELSE (hour_of_day - 12) || ' PM'\n  END as hour_label,\n  transactions,\n  ROUND(transactions::FLOAT / days_with_data, 1) as avg_transactions_per_day,\n  ROUND(sales / days_with_data, 2) as avg_hourly_sales,\n  ROUND(sales / transactions, 2) as avg_transaction_value\nFROM hourly_stats\nORDER BY hour_of_day",
+      "explains": "Hour extraction with timezone handling, formatted output"
+    },
+    
+    {
+      "id": "simple_metric_lookup",
+      "natural_language": "What's my average transaction value?",
+      "intent_analysis": {
+        "metric": "average transaction value",
+        "simple": true,
+        "implicit_timeframe": "all time"
+      },
+      "sql_query": "SELECT \n  ROUND(SUM(totalamount) / COUNT(DISTINCT receiptnumber), 2) as average_transaction_value,\n  COUNT(DISTINCT receiptnumber) as total_transactions,\n  SUM(totalamount) as total_sales\nFROM transactionrecords\nWHERE business = :business_id\n  AND type = 'Sale'\n  AND isdeleted != true",
+      "alternative": "For last 30 days only, add: AND createdtime >= CURRENT_DATE - INTERVAL '30 days'",
+      "explains": "Simple aggregation query for a single metric"
+    }
+  ],
+  
+  "pattern_usage_guide": {
+    "when_to_use_each_pattern": {
+      "simple_aggregation": "Single metric, no grouping needed",
+      "time_series": "Trends over time",
+      "ranking": "Top/bottom N entities",
+      "comparison": "Period over period or entity comparison",
+      "cohort": "Customer behavior over lifecycle",
+      "basket_analysis": "Product relationships"
+    },
+    
+    "combining_patterns": {
+      "example": "Use ranking within time_series for 'top products by month'",
+      "nesting": "CTEs allow building complex queries step by step"
+    }
+  },
+  
+  "common_modifications": {
+    "add_store_filter": "AND storeid = :store_id",
+    "add_product_filter": "AND p.category = :category",
+    "change_time_range": "Modify the INTERVAL in date filters",
+    "add_pagination": "Add LIMIT :limit OFFSET :offset",
+    "include_more_fields": "Add to SELECT and GROUP BY as needed"
+  },
+  
+  "debugging_tips": {
+    "no_results": [
+      "Check date range - maybe no data in period",
+      "Verify business_id is correct",
+      "Check if filters are too restrictive"
+    ],
+    "wrong_numbers": [
+      "Ensure handling returns correctly (negative)",
+      "Check timezone conversion",
+      "Verify join conditions aren't duplicating"
+    ],
+    "slow_performance": [
+      "Add date filter to reduce data scanned",
+      "Use pre-aggregated source if available",
+      "Check if indexes are being used"
+    ]
+  }
+}

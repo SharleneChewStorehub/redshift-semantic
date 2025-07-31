@@ -1,0 +1,20 @@
+# Environment variables for run_rag_test.py
+# Copy this content to a file named .env and fill in your actual values
+
+# Google AI Configuration (REQUIRED)
+GOOGLE_API_KEY=your_google_ai_api_key_here
+
+# Metabase Configuration (OPTIONAL - script will skip API testing if not provided)
+METABASE_HOST=https://your-metabase-instance.com
+METABASE_API_KEY=your_metabase_session_token_here
+METABASE_DATABASE_ID=2
+
+# To get your Google API key:
+# 1. Go to https://makersuite.google.com/app/apikey
+# 2. Create a new API key
+# 3. Copy and paste it above
+
+# To get your Metabase API key:
+# 1. Log into your Metabase instance
+# 2. Go to Settings > Admin settings > Authentication
+# 3. Create a new API key or use session token from browser dev tools 

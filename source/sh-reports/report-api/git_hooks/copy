@@ -1,0 +1,6 @@
+#!/bin/sh
+
+if [ ! -d "$./.git/hooks/pre-push" ]; then
+cp ./git_hooks/pre-push ./.git/hooks/pre-push
+exit 0
+fi 

@@ -1,0 +1,283 @@
+{
+  "file_name": "01_membership_insights.sql",
+  "timestamp": "/Users/sharlenechew/redshift-semantic",
+  "business_question": "For the merchant 'starwise', compare the value of loyalty members vs. non-members for June 2025. I need a breakdown of their total sales, transaction counts, Average Order Value (AOV), and Lifetime Value (LTV).",
+  "golden_sql": "with l as (\n  select\n    b.name,\n    dateadd(hour,8,b.\"membershipsetting.firstgoliveat\") as firstgoliveat\n  from storehub_mongo.businesses b\n  where CHARINDEX('internal', b.planid) = 0 \n    and CHARINDEX('@storehub.com', b.email) = 0\n    and \"membershipsetting.firstgoliveat\" is not null\n    and b.name = 'starwise'\n),\n\nm as (\nSELECT distinct\n    b.name,\n    c.customerid,\n    c._id as customer_id,\n    c.membershipjointime\nfrom storehub_mongo.businesses b\nleft join storehub_mongo.customers c  \n    on c.business = b.name\nwhere CHARINDEX('internal', b.planid) = 0 \n    and CHARINDEX('@storehub.com', b.email) = 0\n    and c.membershipjointime is not null \n    and b.name = 'starwise'\n),\n\nct as (\nselect \n    l.name,\n    count(distinct m.customerid) as totalMembers,\n    --sum(case when m.membershipjointime >= dateadd(hour,-8,cast(getdate()-1 as date)) and m.membershipjointime < dateadd(hour,-8,cast(getdate() as date)) then 1 else 0 end) as newMembersYesterday,\n    --sum(case when m.membershipjointime >= dateadd(hour,-8,cast(getdate()-2 as date)) and m.membershipjointime < dateadd(hour,-8,cast(getdate()-1 as date)) then 1 else 0 end) as newMembersPrevDay,\n    --sum(case when m.membershipjointime >= dateadd(hour,-8,cast(getdate()-30 as date)) and m.membershipjointime < dateadd(hour,-8,cast(getdate() as date)) then 1 else 0 end) as newMembersLast30Days,\n    --sum(case when m.membershipjointime >= dateadd(hour,-8,cast(getdate()-60 as date)) and m.membershipjointime < dateadd(hour,-8,cast(getdate()-31 as date)) then 1 else 0 end) as newMembersPrev30Days\n    sum(case when m.membershipjointime >= dateadd(hour,-8,'2025-06-01') and m.membershipjointime < dateadd(hour,-8,'2025-07-01') then 1 else 0 end) as newMembersDefinedPeriod\nfrom l\nleft join m\n    on m.name = l.name\ngroup by 1\n),\n\ntrx as (\nselect distinct \n    tr.business,\n    b.\"membershipsetting.firstgoliveat\" as firstGoLiveAt,\n    tr.customerid,\n    m.membershipjointime,\n    tr.createdtime,\n    tr.channel,\n    tr.shippingtype,\n    tr.total,\n    case when tr.createdtime > b.\"membershipsetting.firstgoliveat\" then 1 else 0 end as businessMemberTxn,\n    case when tr.createdtime > m.membershipjointime then 1 else 0 end as customerMemberTxn\n\nfrom storehub_mongo.transactionrecords tr\n\n--left join storehub_mongo.rewardsettings r\n--    on r.merchantname = tr.business\n\nleft join storehub_mongo.businesses b\n    on b.name = tr.business\n    \nleft join m\n    on tr.business = m.name\n    and tr.customerid = m.customerid\n\nwhere (tr.channel is null or tr.channel in (2,3))\n    and tr.transactiontype = 'Sale'\n    and tr.iscancelled is not TRUE\n    and tr.status not in ('cancelled','created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n    and tr.createdtime >= dateadd(hour,-8,cast(getdate()-180 as date))\n    and tr.business = 'starwise'\n    \norder by 3 ASC, 5 ASC \n)\n/*,\n\nrr as (\nselect \n    pc.business,\n    sum(case when pc.restclaimcount = 0 then 1 else 0 end) as total_rewards_redeemed\nfrom storehub_mongo.promotioncustomers pc\nwhere pc.rewardsource IN ('welcomeNewMembershipReward', 'pointsReward', 'birthdayReward', 'tierUpgradeReward')\n    [[and pc.business = {{bo_account_name}}]]\ngroup by 1\n)\n*/\n\n\nselect \n    tmp.name as business,\n    tmp.totalMembers,\n    tmp.activeMembers,\n    --tmp.newMembersYesterday,\n    --tmp.newMembersPrevDay,\n    --tmp.newMembersLast30Days,\n    --tmp.newMembersPrev30Days,\n    tmp.newMembersDefinedPeriod,\n    cast(tmp.memberTransactions as float) / nullif(cast(tmp.totalTransactions as float),0) as percentMemberTransactions,\n    tmp.memberTransactions,\n    cast(tmp.memberSales as float) / nullif(cast(tmp.totalSales as float),0) as percentMemberSales,\n    tmp.memberSales,\n    tmp.memberCustomers,\n    tmp.membersAverageLifeTimeValue,\n    tmp.nonMembersAverageLifeTimeValue,\n    tmp.memberAOV,\n    tmp.nonMemberAOV,\n    tmp.membersAverageTransactions,\n    tmp.nonMembersAverageTransactions,\n    tmp.totalRewardsRedeemed\nfrom (\n    select \n        ct.name,\n        ct.totalMembers,\n        count(distinct case when trx.createdtime >= dateadd(hour,-8,cast(getdate()-30 as date)) and trx.membershipjointime is not null then trx.customerid end) as activeMembers, \n        --ct.newMembersYesterday,\n        --ct.newMembersPrevDay,\n        --ct.newMembersLast30Days,\n        --ct.newMembersPrev30Days,\n        ct.newMembersDefinedPeriod,\n        sum(case when trx.customerMemberTxn = 1 then 1 else 0 end) as memberTransactions,\n        sum(case when trx.businessMemberTxn = 1 then 1 else 0 end) as totalTransactions,\n        sum(case when trx.customerMemberTxn = 1 then trx.total else 0 end) as memberSales,\n        sum(case when trx.businessMemberTxn = 1 then trx.total else 0 end) as totalSales,\n        count(distinct case when trx.customerMemberTxn = 1 then trx.customerid end) as memberCustomers,\n        sum(case when trx.businessMemberTxn = 1 and trx.customerMemberTxn = 0 then 1 else 0 end) as nonMemberTransactions,\n        sum(case when trx.businessMemberTxn = 1 and trx.customerMemberTxn = 0 then trx.total else 0 end) as nonMemberSales,\n        sum(case when trx.businessMemberTxn = 1 and trx.customerMemberTxn = 0 and trx.customerid = '' then 1 else 0 end) as nonMemberNoCustomerIdTransactions,\n        count(distinct case when trx.businessMemberTxn = 1 and trx.customerMemberTxn = 0 and trx.customerid <> '' then trx.customerid end) as nonMemberCustomers,\n        cast(memberSales as float) / nullif(cast(memberCustomers as float),0) membersAverageLifeTimeValue,\n        cast(nonMemberSales as float) / nullif(cast(nonMemberNoCustomerIdTransactions + nonMemberCustomers as float), 0) as nonMembersAverageLifeTimeValue,\n        cast(memberSales as float) / nullif(cast(memberTransactions as float), 0) as memberAOV,\n        cast(nonMemberSales as float) / nullif(cast(nonMemberTransactions as float), 0) as nonMemberAOV,\n        cast(memberTransactions as float) / nullif(cast(memberCustomers as float), 0) as membersAverageTransactions,\n        cast(nonMemberTransactions as float) / nullif(cast(nonMemberNoCustomerIdTransactions + nonMemberCustomers as float), 0) as nonMembersAverageTransactions,\n        rr2.totalRewardsRedeemed2 as totalRewardsRedeemed\n    \n    from ct\n        \n    left join trx\n        on trx.business = ct.name\n    \n    --left join rr\n    --    on rr.business = ct.name\n    \n    left join (\n        select \n            r.business,\n            sum(r.totalrewardsredeemed) as totalRewardsRedeemed2\n        from \"transformations\".\"report_members_rewards\" r\n        group by 1\n        ) rr2\n    on rr2.business = ct.name\n    \n    group by 1,2,4,rr2.totalRewardsRedeemed2--,5,6\n    ) tmp",
+  "ai_generated_sql": "WITH classified_transactions AS (\n    SELECT\n        tr.total,\n        tr.customerid,\n        CASE\n            WHEN m.customerid IS NOT NULL THEN 'Loyalty Member'\n            ELSE 'Non-Member'\n        END AS customer_type\n    FROM\n        storehub_mongo.transactionrecords AS tr\n    LEFT JOIN (\n        SELECT DISTINCT\n            c.customerid\n        FROM\n            storehub_mongo.customers AS c\n        WHERE\n            c.business = 'starwise' AND c.membershipjointime IS NOT NULL\n    ) AS m\n        ON tr.customerid = m.customerid\n    WHERE\n        tr.business = 'starwise'\n        AND tr.createdtime >= '2025-06-01'\n        AND tr.createdtime < '2025-07-01'\n        AND tr.transactiontype = 'Sale'\n        AND tr.iscancelled IS NOT TRUE\n        AND tr.status NOT IN ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n)\nSELECT\n    ct.customer_type,\n    SUM(ct.total) AS total_sales,\n    COUNT(*) AS transaction_count,\n    SUM(ct.total) / NULLIF(COUNT(*), 0) AS aov,\n    SUM(ct.total) / NULLIF(CAST(COUNT(DISTINCT CASE WHEN ct.customerid IS NOT NULL AND ct.customerid <> '' THEN ct.customerid END) + SUM(CASE WHEN ct.customerid IS NULL OR ct.customerid = '' THEN 1 ELSE 0 END) AS FLOAT), 0) AS ltv\nFROM\n    classified_transactions AS ct\nGROUP BY\n    ct.customer_type\nORDER BY\n    ct.customer_type ASC;",
+  "api_result": {
+    "success": true,
+    "status_code": 202,
+    "data": {
+      "data": {
+        "rows": [
+          [
+            "Loyalty Member",
+            401320.1,
+            9027,
+            44.45774,
+            51.74317947395564
+          ],
+          [
+            "Non-Member",
+            1132475.3,
+            31845,
+            35.5621,
+            35.56434067141915
+          ]
+        ],
+        "cols": [
+          {
+            "display_name": "customer_type",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "customer_type",
+              {
+                "base-type": "type/Text"
+              }
+            ],
+            "name": "customer_type",
+            "base_type": "type/Text",
+            "effective_type": "type/Text"
+          },
+          {
+            "display_name": "total_sales",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "total_sales",
+              {
+                "base-type": "type/Decimal"
+              }
+            ],
+            "name": "total_sales",
+            "base_type": "type/Decimal",
+            "effective_type": "type/Decimal"
+          },
+          {
+            "display_name": "transaction_count",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "transaction_count",
+              {
+                "base-type": "type/BigInteger"
+              }
+            ],
+            "name": "transaction_count",
+            "base_type": "type/BigInteger",
+            "effective_type": "type/BigInteger"
+          },
+          {
+            "display_name": "aov",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "aov",
+              {
+                "base-type": "type/Decimal"
+              }
+            ],
+            "name": "aov",
+            "base_type": "type/Decimal",
+            "effective_type": "type/Decimal"
+          },
+          {
+            "display_name": "ltv",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "ltv",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "ltv",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          }
+        ],
+        "native_form": {
+          "query": "WITH classified_transactions AS (\n    SELECT\n        tr.total,\n        tr.customerid,\n        CASE\n            WHEN m.customerid IS NOT NULL THEN 'Loyalty Member'\n            ELSE 'Non-Member'\n        END AS customer_type\n    FROM\n        storehub_mongo.transactionrecords AS tr\n    LEFT JOIN (\n        SELECT DISTINCT\n            c.customerid\n        FROM\n            storehub_mongo.customers AS c\n        WHERE\n            c.business = 'starwise' AND c.membershipjointime IS NOT NULL\n    ) AS m\n        ON tr.customerid = m.customerid\n    WHERE\n        tr.business = 'starwise'\n        AND tr.createdtime >= '2025-06-01'\n        AND tr.createdtime < '2025-07-01'\n        AND tr.transactiontype = 'Sale'\n        AND tr.iscancelled IS NOT TRUE\n        AND tr.status NOT IN ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n)\nSELECT\n    ct.customer_type,\n    SUM(ct.total) AS total_sales,\n    COUNT(*) AS transaction_count,\n    SUM(ct.total) / NULLIF(COUNT(*), 0) AS aov,\n    SUM(ct.total) / NULLIF(CAST(COUNT(DISTINCT CASE WHEN ct.customerid IS NOT NULL AND ct.customerid <> '' THEN ct.customerid END) + SUM(CASE WHEN ct.customerid IS NULL OR ct.customerid = '' THEN 1 ELSE 0 END) AS FLOAT), 0) AS ltv\nFROM\n    classified_transactions AS ct\nGROUP BY\n    ct.customer_type\nORDER BY\n    ct.customer_type ASC;"
+        },
+        "results_timezone": "Asia/Kuala_Lumpur",
+        "requested_timezone": "Asia/Kuala_Lumpur",
+        "results_metadata": {
+          "columns": [
+            {
+              "display_name": "customer_type",
+              "field_ref": [
+                "field",
+                "customer_type",
+                {
+                  "base-type": "type/Text"
+                }
+              ],
+              "name": "customer_type",
+              "base_type": "type/Text",
+              "effective_type": "type/Text",
+              "semantic_type": "type/Category",
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 2,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Text": {
+                    "percent-json": 0.0,
+                    "percent-url": 0.0,
+                    "percent-email": 0.0,
+                    "percent-state": 0.0,
+                    "average-length": 12.0
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "total_sales",
+              "field_ref": [
+                "field",
+                "total_sales",
+                {
+                  "base-type": "type/Decimal"
+                }
+              ],
+              "name": "total_sales",
+              "base_type": "type/Decimal",
+              "effective_type": "type/Decimal",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 2,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 401320.1,
+                    "q1": 401320.1,
+                    "q3": 1132475.3,
+                    "max": 1132475.3,
+                    "sd": 517004.8000198064,
+                    "avg": 766897.7
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "transaction_count",
+              "field_ref": [
+                "field",
+                "transaction_count",
+                {
+                  "base-type": "type/BigInteger"
+                }
+              ],
+              "name": "transaction_count",
+              "base_type": "type/BigInteger",
+              "effective_type": "type/BigInteger",
+              "semantic_type": "type/Quantity",
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 2,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 9027.0,
+                    "q1": 9027.0,
+                    "q3": 31845.0,
+                    "max": 31845.0,
+                    "sd": 16134.762533114641,
+                    "avg": 20436.0
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "aov",
+              "field_ref": [
+                "field",
+                "aov",
+                {
+                  "base-type": "type/Decimal"
+                }
+              ],
+              "name": "aov",
+              "base_type": "type/Decimal",
+              "effective_type": "type/Decimal",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 2,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 35.5621,
+                    "q1": 35.5621,
+                    "q3": 44.45774,
+                    "max": 44.45774,
+                    "sd": 6.2901673669943,
+                    "avg": 40.00992
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "ltv",
+              "field_ref": [
+                "field",
+                "ltv",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "ltv",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 2,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 35.56434067141915,
+                    "q1": 35.56434067141915,
+                    "q3": 51.74317947395564,
+                    "max": 51.74317947395564,
+                    "sd": 11.440166628997595,
+                    "avg": 43.6537600726874
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "insights": null
+      },
+      "cached": false,
+      "database_id": 2,
+      "started_at": "2025-07-30T15:46:07.686064Z",
+      "json_query": {
+        "database": 2,
+        "type": "native",
+        "native": {
+          "query": "WITH classified_transactions AS (\n    SELECT\n        tr.total,\n        tr.customerid,\n        CASE\n            WHEN m.customerid IS NOT NULL THEN 'Loyalty Member'\n            ELSE 'Non-Member'\n        END AS customer_type\n    FROM\n        storehub_mongo.transactionrecords AS tr\n    LEFT JOIN (\n        SELECT DISTINCT\n            c.customerid\n        FROM\n            storehub_mongo.customers AS c\n        WHERE\n            c.business = 'starwise' AND c.membershipjointime IS NOT NULL\n    ) AS m\n        ON tr.customerid = m.customerid\n    WHERE\n        tr.business = 'starwise'\n        AND tr.createdtime >= '2025-06-01'\n        AND tr.createdtime < '2025-07-01'\n        AND tr.transactiontype = 'Sale'\n        AND tr.iscancelled IS NOT TRUE\n        AND tr.status NOT IN ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n)\nSELECT\n    ct.customer_type,\n    SUM(ct.total) AS total_sales,\n    COUNT(*) AS transaction_count,\n    SUM(ct.total) / NULLIF(COUNT(*), 0) AS aov,\n    SUM(ct.total) / NULLIF(CAST(COUNT(DISTINCT CASE WHEN ct.customerid IS NOT NULL AND ct.customerid <> '' THEN ct.customerid END) + SUM(CASE WHEN ct.customerid IS NULL OR ct.customerid = '' THEN 1 ELSE 0 END) AS FLOAT), 0) AS ltv\nFROM\n    classified_transactions AS ct\nGROUP BY\n    ct.customer_type\nORDER BY\n    ct.customer_type ASC;"
+        },
+        "middleware": {
+          "js-int-to-string?": true,
+          "add-default-userland-constraints?": true
+        }
+      },
+      "average_execution_time": null,
+      "status": "completed",
+      "context": "ad-hoc",
+      "row_count": 2,
+      "running_time": 8236
+    },
+    "row_count": 2,
+    "query": "WITH classified_transactions AS (\n    SELECT\n        tr.total,\n        tr.customerid,\n        CASE\n            WHEN m.customerid IS NOT NULL THEN 'Loyalty Member'\n            ELSE 'Non-Member'\n        END AS customer_type\n    FROM\n        storehub_mongo.transactionrecords AS tr\n    LEFT JOIN (\n        SELECT DISTINCT\n            c.customerid\n        FROM\n            storehub_mongo.customers AS c\n        WHERE\n            c.business = 'starwise' AND c.membershipjointime IS NOT NULL\n    ) AS m\n        ON tr.customerid = m.customerid\n    WHERE\n        tr.business = 'starwise'\n        AND tr.createdtime >= '2025-06-01'\n        AND tr.createdtime < '2025-07-01'\n        AND tr.transactiontype = 'Sale'\n        AND tr.iscancelled IS NOT TRUE\n        AND tr.status NOT IN ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n)\nSELECT\n    ct.customer_type,\n    SUM(ct.total) AS total_sales,\n    COUNT(*) AS transaction_count,\n    SUM(ct.total) / NULLIF(COUNT(*), 0) AS aov,\n    SUM(ct.total) / NULLIF(CAST(COUNT(DISTINCT CASE WHEN ct.customerid IS NOT NULL AND ct.customerid <> '' THEN ct.customerid END) + SUM(CASE WHEN ct.customerid IS NULL OR ct.customerid = '' THEN 1 ELSE 0 END) AS FLOAT), 0) AS ltv\nFROM\n    classified_transactions AS ct\nGROUP BY\n    ct.customer_type\nORDER BY\n    ct.customer_type ASC;"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "success": true,
+  "status": "completed",
+  "execution_time_ms": 3635,
+  "columns": [
+    "month_code",
+    "month_name",
+    "gross_sales",
+    "returns",
+    "discounts",
+    "tax",
+    "net_sales",
+    "total_revenue",
+    "sale_transactions",
+    "return_transactions",
+    "total_transactions",
+    "unique_customers",
+    "avg_transaction_value",
+    "return_rate_percent",
+    "discount_rate_percent",
+    "customers_per_transaction"
+  ],
+  "row_count": 0,
+  "sample_data": []
+}

@@ -1,0 +1,29 @@
+{
+    "bail": false,
+    "verbose": true,
+    "globals": {
+        "ts-jest": {
+            "tsConfig": "tsconfig.json"
+        }
+    },
+    "moduleFileExtensions": ["ts", "js"],
+    "transform": {
+        "^.+\\.(ts|tsx)$": "ts-jest"
+    },
+    "testMatch": ["**/test/**/*.test.(ts|js)"],
+    "collectCoverageFrom": [
+        "src/**/*.(ts|js)",
+        "!src/index.ts",
+        "!src/router.ts",
+        "!src/interfaces/*.ts",
+        "!src/**/*.d.ts",
+        "!src/warehouse/index.ts",
+        "!src/warehouse/redshift/index.ts",
+        "!src/controllers/error.ts",
+        "!src/controllers/*/router.ts",
+        "!src/relations.ts",
+        "!src/database.ts",
+        "!src/schedulers.ts",
+        "!src/stats.ts"
+    ]
+}

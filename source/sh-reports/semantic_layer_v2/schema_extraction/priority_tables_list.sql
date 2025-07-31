@@ -1,0 +1,201 @@
+-- Priority Tables Quick Reference
+-- Generated: 2025-07-16 21:53:20
+
+-- Businesses (19 tables)
+--   businesses
+--   businesses__addons
+--   businesses__cashregisters
+--   businesses__cashregisters__device
+--   businesses__cashregisters__location
+--   businesses__excludeservicechargeproductcondition
+--   businesses__fixedfeesettings
+--   businesses__nagbar
+--   businesses__ownertransfertokens
+--   businesses__paymentoptions
+--   businesses__qrorderingsettings
+--   businesses__stores
+--   businesses__stores__location
+--   businesses__stores__pickupaddress
+--   businesses__stores__pickupaddress__addresscomponents
+--   businesses__stores__qrorderingsettings
+--   businesses__stores__qrorderingsettings__vacations
+--   businesses__stores__reviewinfo
+--   businesses__taxcodes
+
+-- Customers (2 tables)
+--   consumers
+--   customers
+
+-- Digital Ordering (3 tables)
+--   fooddeliveryplatformsettings
+--   fooddeliveryplatformsettings__outlets
+--   fooddeliveryplatformsettings__outlets__grabitemmappings
+
+-- Employees (2 tables)
+--   employees
+--   employees__passwordsettingtokens
+
+-- Inventory (9 tables)
+--   inventorychangeevents
+--   stockreturns
+--   stockreturns__returneditems
+--   stockreturns__returneditems__componentsusages
+--   stocktakeitems
+--   stocktakes
+--   stocktransfers
+--   stocktransfers__ordereditems
+--   stocktransfers__ordereditems__componentsusages
+
+-- Logistics (11 tables)
+--   logistics
+--   logisticsjoblogs
+--   logisticslogs
+--   shippingzones
+--   shippingzones__deliverymethods
+--   shippingzones__deliverymethods__freeconditions
+--   shippingzones__deliverymethods__ratecalculation
+--   shippingzones__deliverymethods__ratecalculation__additions
+--   shippingzones__deliverymethods__ratecalculation__additions__measure
+--   shippingzones__deliverymethods__ratecalculation__firstbase
+--   shippingzones__deliverymethods__ratecalculation__firstbase__measure
+
+-- Loyalty (5 tables)
+--   customerpoints
+--   loyaltychangelogs
+--   pointchangelogs__points
+--   rewardsettings
+--   rewardssets
+
+-- Marketing (13 tables)
+--   campaignjobs
+--   campaignjobs__additionalattributes
+--   campaignlogs
+--   campaigns
+--   campaignsegments
+--   campaignsegments__nestedsource
+--   campaignsegments__nestedsource__filters
+--   promotionclaimcounts
+--   promotioncustomers
+--   promotions
+--   promotions__requiredproducts
+--   promotions__rewardssettings
+--   rewardssets__promotionconfigs
+
+-- Online Store (11 tables)
+--   onlinecategories
+--   onlinecategories__conditions
+--   onlinestoreinfos
+--   onlinestoreinfos__analytictools
+--   onlinestoreinfos__bankingdetails
+--   onlinestoreinfos__customizecommissionrates
+--   onlinestoreinfos__socialmediainfo
+--   onlinestoreinfos__socialmediainfo__facebook
+--   onlinestoreinfos__socialmediainfo__line
+--   onlinestoreinfos__socialmediainfo__viber
+--   thirdpartyonlineorders
+
+-- Other (43 tables)
+--   bankaccounts
+--   comments
+--   customtransactionfeerates
+--   customtransactionfeerates__rateconfig
+--   einvoicerequestrecords
+--   feedbacks
+--   inventories
+--   marketingtags
+--   messages
+--   orderlogs
+--   pointchangelogs
+--   purchaseorders
+--   purchaseorders__ordereditems
+--   purchaseorders__ordereditems__componentsusages
+--   qbosettings
+--   qbosettings__qboaccounts
+--   qbosettings__qbotaxcodes
+--   registerlocalsettings
+--   registerlocalsettings__localsettings
+--   reviewinfohistories
+--   reviewinfos
+--   searchingtags
+--   serialnumbers
+--   serialnumbers__logs
+--   sharedmodifiers
+--   sharedmodifiers__optionvalues
+--   shareinforequests
+--   shifts
+--   shifts__payins
+--   shifts__taxsummary
+--   smscreditlogs
+--   storereviews
+--   subscriptionorders
+--   subscriptions
+--   subscriptions__addons
+--   suppliers
+--   timesheets
+--   useractionlogs
+--   userjobs
+--   xerosettings
+--   xerosettings__accounts
+--   xerosettings__taxcodes
+--   zreadings
+
+-- Payments (14 tables)
+--   batchpayouts
+--   gatewayrecords
+--   onlinestoreinfos__offlinepaymentbankaccounts
+--   onlinestoreinfos__offlinepaymentinstructions
+--   onlinestoreinfos__onlinepaymentoptions
+--   paymentrecordlogs
+--   paymentrecords
+--   paymentsettlements__orders
+--   payoutitems
+--   payoutitems__adjustmentdetails
+--   payoutitems__adjustmentdetails__adjustmentitems
+--   payoutitems__storehubdetails
+--   qbosettings__qbopaymentmethods
+--   zreadings__paymentcollections
+
+-- Products (11 tables)
+--   products
+--   products__beerdocketsettings
+--   products__components
+--   products__pricebooks
+--   products__quickselectpositions
+--   products__soldoutstores
+--   products__stocktakes
+--   products__variations
+--   products__variations__optionvalues
+--   products__variations__optionvalues__soldoutstores
+--   products__variationvalues
+
+-- Transactions (29 tables)
+--   transactionrecords
+--   transactionrecords__appliedvoucher
+--   transactionrecords__contactdetail
+--   transactionrecords__deliveryinformation
+--   transactionrecords__deliveryinformation__address
+--   transactionrecords__deliveryinformation__address__location
+--   transactionrecords__deliveryinformation__deliverymethodinfo
+--   transactionrecords__fromlocation
+--   transactionrecords__items
+--   transactionrecords__items__componentsusages
+--   transactionrecords__items__productinfo
+--   transactionrecords__items__promotions
+--   transactionrecords__items__selectedoptions
+--   transactionrecords__location
+--   transactionrecords__loyaltydiscounts
+--   transactionrecords__payments
+--   transactionrecords__payments__manualapproveinfo
+--   transactionrecords__pickupinformation
+--   transactionrecords__pickupinformation__store__location
+--   transactionrecords__pickupinformation__store__pickupaddress
+--   transactionrecords__pickupinformation__store__pickupaddress__addresscomponents
+--   transactionrecords__pickupinformation__store__qrorderingsettings
+--   transactionrecords__pickupinformation__store__qrorderingsettings__vacations
+--   transactionrecords__pickupinformation__store__reviewinfo
+--   transactionrecords__promotions
+--   transactionrecords__returnprocess
+--   transactionrecords__returnprocess__selectedoptions
+--   transactionrecords__review
+--   transactionrecords__suborders
+

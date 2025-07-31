@@ -1,0 +1,828 @@
+{
+  "file_name": "03_engage_freetrial.sql",
+  "timestamp": "/Users/sharlenechew/redshift-semantic",
+  "business_question": "I need to see an activity funnel for all Malaysian merchants who started an Engage trial this year. For each merchant, show their new customer acquisition momentum in the two weeks leading up to the trial start, and on how many days they sent automated SMS campaigns during the first 30 days of their trial.",
+  "golden_sql": "select distinct\n    b.name,\n    b._id,\n    b.country,\n    b.subscriptionstatus,\n    dateadd(hour,8,b.campaigntrialstartdate) as engage_trial_start_date,\n    count(distinct case when c.createdtime > dateadd(day,-14,b.campaigntrialstartdate) and c.createdtime <= dateadd(day,-7,b.campaigntrialstartdate) then c.\"_id\" end) as p14d_newcust,\n    count(distinct case when c.createdtime > dateadd(day,-7,b.campaigntrialstartdate) and c.createdtime <= b.campaigntrialstartdate then c.\"_id\" end) as p7d_newcust,\n    count(distinct case when sms.\"day\" > engage_trial_start_date and sms.\"day\" <= dateadd(day,30,engage_trial_start_date) then sms.\"day\" end) as auto_sms_sent_days_within_trial\n    /*case \n        when p14d_newcust >= 10 and p17d_newcust >= 10 then 1\n        else 0\n    end as product_qualified_lead*/\n    \nfrom storehub_mongo.businesses b\n\nleft join transformations.mask_customers c\n    on b.name = c.business\n    \nleft join (\n    select distinct\n    cj.business,\n    cast(dateadd(hour,8,cj.createdtime) as date) as \"day\"\n    --count(distinct case when cj.globalcampaigninformationid <> '64d4d6b30f005152c96d10cb' then cj._id end) as automated_sms_sent\n    \n    from storehub_mongo.campaignjobs cj\n    \n    where cj.createdtime >= '2022-09-23'\n        and cj.pushstatus = 'SUCCESS'\n        \n    --group by 1,2\n    ) sms\n    on sms.business = b.name\n\nwhere CHARINDEX('internal', b.planid) = 0 \n    and CHARINDEX('@storehub.com', b.email) = 0\n    and b.campaigntrialstartdate is not null\n    and b.country in ('MY')\n    and c.createdtime >= '2022-12-14' -- 2 weeks before the earliest recorded Engage trial start date\n    and b.campaigntrialstartdate >= '2025-01-01'\n    \ngroup by 1,2,3,4,5\norder by 5 ASC",
+  "ai_generated_sql": "WITH automated_sms_days AS (\n    SELECT DISTINCT\n        cj.business,\n        CAST(DATEADD(HOUR, 8, cj.createdtime) AS DATE) AS send_date\n    FROM\n        storehub_mongo.campaignjobs AS cj\n    WHERE\n        cj.pushstatus = 'SUCCESS'\n        AND cj.globalcampaigninformationid <> '64d4d6b30f005152c96d10cb'\n        AND cj.createdtime >= DATE_TRUNC('year', CURRENT_DATE)\n)\nSELECT\n    b.name AS merchant_name,\n    b._id AS merchant_id,\n    DATEADD(HOUR, 8, b.campaigntrialstartdate) AS engage_trial_start_date,\n    COUNT(DISTINCT CASE\n        WHEN c.createdtime >= DATEADD(DAY, -14, b.campaigntrialstartdate) AND c.createdtime < DATEADD(DAY, -7, b.campaigntrialstartdate)\n        THEN c._id\n    END) AS new_customers_14_to_7_days_pre_trial,\n    COUNT(DISTINCT CASE\n        WHEN c.createdtime >= DATEADD(DAY, -7, b.campaigntrialstartdate) AND c.createdtime <= b.campaigntrialstartdate\n        THEN c._id\n    END) AS new_customers_7_days_pre_trial,\n    COUNT(DISTINCT CASE\n        WHEN sms.send_date > DATEADD(HOUR, 8, b.campaigntrialstartdate) AND sms.send_date <= DATEADD(DAY, 30, DATEADD(HOUR, 8, b.campaigntrialstartdate))\n        THEN sms.send_date\n    END) AS automated_sms_days_in_first_30_days_trial\nFROM\n    storehub_mongo.businesses AS b\nLEFT JOIN\n    transformations.mask_customers AS c ON b.name = c.business\nLEFT JOIN\n    automated_sms_days AS sms ON b.name = sms.business\nWHERE\n    b.country = 'MY'\n    AND b.campaigntrialstartdate IS NOT NULL\n    AND b.campaigntrialstartdate >= DATE_TRUNC('year', CURRENT_DATE)\n    AND CHARINDEX('internal', b.planid) = 0\n    AND CHARINDEX('@storehub.com', b.email) = 0\nGROUP BY\n    b.name,\n    b._id,\n    b.campaigntrialstartdate\nORDER BY\n    engage_trial_start_date ASC;",
+  "api_result": {
+    "success": true,
+    "status_code": 202,
+    "data": {
+      "data": {
+        "rows": [
+          [
+            "theglitch",
+            "67721b445505400007d158d4",
+            "2025-01-02T11:25:49+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "nagoyatextiles",
+            "676d2c8d734fb600071aece8",
+            "2025-01-03T11:57:07+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "rockingrickshaw",
+            "6777ad3b92a34c00070a6818",
+            "2025-01-06T13:05:03+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "nxdistrosdnbhd",
+            "64266417e38aa30008d47b3d",
+            "2025-01-06T13:22:51+08:00",
+            21,
+            3436,
+            0
+          ],
+          [
+            "simplyawecreations",
+            "6775edac8a27b90007d8f00f",
+            "2025-01-06T17:41:47+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "chadareemalaysia",
+            "67776ee6b4c8f80006077309",
+            "2025-01-09T18:17:58+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "yellowbikemotorsport",
+            "65bcd7b4494da900071daa8d",
+            "2025-01-10T15:46:45+08:00",
+            24,
+            35,
+            24
+          ],
+          [
+            "ngopitiampoint",
+            "677f92853059490007c1d010",
+            "2025-01-13T15:36:41+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "avongcafe",
+            "6392eedbc56fe70008a682e1",
+            "2025-01-13T23:58:18+08:00",
+            115,
+            66,
+            0
+          ],
+          [
+            "drivingrangekwasa",
+            "6781101408ffee000792b265",
+            "2025-01-14T11:50:17+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "cheritakitacafe",
+            "6784ce186ef26f0007a9d6e4",
+            "2025-01-15T15:37:39+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "umbrellastore",
+            "67888671d04e270006ea0ec7",
+            "2025-01-16T12:10:15+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "mayzaleafood",
+            "677f352e61a1c70007197324",
+            "2025-01-17T15:57:54+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "hillrisecoffee16",
+            "6370e5615629100008c8246c",
+            "2025-01-19T17:05:00+08:00",
+            73,
+            82,
+            0
+          ],
+          [
+            "sajianwarisanpermyjaya",
+            "6776065c63c3c60007fcb787",
+            "2025-01-20T11:32:11+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "aydenbarbershop",
+            "678f38b1db4ed50007eb9806",
+            "2025-01-21T14:30:17+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "andhrabananaleaf",
+            "673301eae329000007203c3f",
+            "2025-01-22T17:45:46+08:00",
+            1,
+            0,
+            0
+          ],
+          [
+            "gamelan",
+            "5c403c16be29bc5cbacf1a1b",
+            "2025-01-25T13:17:52+08:00",
+            20,
+            40,
+            0
+          ],
+          [
+            "tiffin55",
+            "677df2a04442d40007e5d126",
+            "2025-01-30T23:58:49+08:00",
+            0,
+            0,
+            3
+          ],
+          [
+            "durianba",
+            "67988adbc19b4500073adac1",
+            "2025-02-05T14:43:45+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "g3one",
+            "5f958b73cefaa10006e08c07",
+            "2025-02-10T11:40:31+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "sawadeerakcr",
+            "67aeb0c5c3b8bf0007289288",
+            "2025-02-14T14:20:03+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "gelaniis",
+            "66ab05bd64975c0006e00e79",
+            "2025-02-22T01:11:09+08:00",
+            174,
+            164,
+            0
+          ],
+          [
+            "debiasi",
+            "66e2b9707943bf000782086c",
+            "2025-02-24T19:24:42+08:00",
+            1,
+            3,
+            1
+          ],
+          [
+            "gigihualeestore",
+            "67c7cdbb266ec0000748cacb",
+            "2025-03-05T12:10:53+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "sedosekilau",
+            "63464624ce8c2300077df924",
+            "2025-03-06T11:17:32+08:00",
+            7,
+            2,
+            0
+          ],
+          [
+            "galaxxseahq",
+            "673ef3e854d6e6000709508e",
+            "2025-03-07T10:45:22+08:00",
+            3,
+            8,
+            0
+          ],
+          [
+            "homeboisworldwide",
+            "6475b30de1a43e0007ff3e81",
+            "2025-03-10T20:34:43+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "ayaana",
+            "64c61d34d10bc800079ef1a3",
+            "2025-03-13T12:46:05+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "juewei",
+            "67c6b222b22aa40006307896",
+            "2025-03-14T15:39:31+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "kinmerestaurant",
+            "5b1a2dbf5efb4c5fbb038d04",
+            "2025-03-28T21:02:15+08:00",
+            52,
+            49,
+            0
+          ],
+          [
+            "makanmomentscafe",
+            "677266831c452800073fe1e8",
+            "2025-04-07T22:45:02+08:00",
+            43,
+            72,
+            0
+          ],
+          [
+            "queenabaya",
+            "62a84b749cae99000804a4c5",
+            "2025-04-09T16:14:09+08:00",
+            116,
+            37,
+            0
+          ],
+          [
+            "kohinoor",
+            "67edec88f7e8380007a855b3",
+            "2025-04-09T17:07:53+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "kailasmalaysia",
+            "6449fd15d6c31f00070ec9a3",
+            "2025-04-11T13:53:14+08:00",
+            22,
+            21,
+            0
+          ],
+          [
+            "v365",
+            "67b432e810935000068af035",
+            "2025-04-11T23:37:06+08:00",
+            8,
+            1,
+            0
+          ],
+          [
+            "ladyk",
+            "63a26c752784f90007ee8dda",
+            "2025-04-22T12:15:20+08:00",
+            95,
+            80,
+            0
+          ],
+          [
+            "mongkokstore",
+            "68084caa1cccf600087a2ff7",
+            "2025-04-23T12:42:38+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "duspecialitycoffee",
+            "66fd170d09641b00078cca4e",
+            "2025-04-23T15:48:52+08:00",
+            117,
+            107,
+            0
+          ],
+          [
+            "somethingonlinemarket",
+            "680b4d5bb6c61300073b74cf",
+            "2025-04-28T16:55:33+08:00",
+            0,
+            1,
+            0
+          ],
+          [
+            "narucafe",
+            "67d7e66306be790006d0b121",
+            "2025-04-29T15:50:32+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "missshortcakes",
+            "5ae9af27b17e6526964c5f9e",
+            "2025-04-29T19:28:43+08:00",
+            2,
+            3,
+            11
+          ],
+          [
+            "bayangcoffee",
+            "62988da63737c1000799166f",
+            "2025-04-30T11:36:03+08:00",
+            1,
+            0,
+            10
+          ],
+          [
+            "pipitpatisserie",
+            "613070ac03fb4d00065970eb",
+            "2025-04-30T16:39:03+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "testengageflow1",
+            "681d816527ad440007c7dd9b",
+            "2025-05-09T12:16:06+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "kuanxiang",
+            "67ef768949a00e0007ab6ab8",
+            "2025-05-09T17:45:48+08:00",
+            2,
+            2,
+            0
+          ],
+          [
+            "86concept",
+            "615ee2c282c0d40006280fb0",
+            "2025-05-13T12:39:14+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "hanamispawellness",
+            "6618a80b2c107f0008aa6a52",
+            "2025-05-13T14:43:14+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "naromakco",
+            "67f37e406176b70007b59816",
+            "2025-05-14T15:04:49+08:00",
+            0,
+            2,
+            0
+          ],
+          [
+            "fffgoodfoodsdnbhd",
+            "6689f2fc812bcf0007cf451d",
+            "2025-05-17T12:44:16+08:00",
+            3,
+            1,
+            5
+          ],
+          [
+            "butiklmarizaz",
+            "62bc11fa9cdc4a00085c1159",
+            "2025-05-17T12:58:21+08:00",
+            46,
+            20,
+            25
+          ],
+          [
+            "chicketory",
+            "60e2bafd9027ec0006febb00",
+            "2025-05-19T16:06:15+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "meilazertcheesetart",
+            "65816a4075c81300072b6362",
+            "2025-05-21T01:49:29+08:00",
+            118,
+            88,
+            4
+          ],
+          [
+            "huiwenstore",
+            "682da37ec978180007333c14",
+            "2025-05-21T18:15:24+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "guangyuan",
+            "683fbbf2bb2b2200076cf44a",
+            "2025-06-04T12:43:56+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "championwholesaleenterprise",
+            "5d2d95c88918cb6e3c3c9800",
+            "2025-06-08T11:55:37+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "seimpiplayland",
+            "67b721f94fe15f0008df6151",
+            "2025-06-10T00:46:22+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "medklinn",
+            "5af0151e2e70af5681d3e565",
+            "2025-06-11T09:55:56+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "dachangsha",
+            "6835896481d8660007fd37e0",
+            "2025-06-13T23:00:29+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "matuyaizakaya",
+            "673427e4944b1e000821326c",
+            "2025-06-16T16:43:29+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "laut",
+            "663442178d42e1000680cba3",
+            "2025-07-01T17:19:28+08:00",
+            0,
+            0,
+            22
+          ],
+          [
+            "baksosenario",
+            "6021104e480b8400066dd1bd",
+            "2025-07-08T14:31:42+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "chickenroasters",
+            "66d5e150cd6e800007a68654",
+            "2025-07-22T00:40:16+08:00",
+            0,
+            0,
+            8
+          ],
+          [
+            "aftermeal",
+            "5c8aaabca629d87e257a528f",
+            "2025-07-29T19:04:58+08:00",
+            0,
+            0,
+            0
+          ],
+          [
+            "homiesartisancoffeeandeatery",
+            "6841787a7eee1f000798ad43",
+            "2025-07-29T20:24:12+08:00",
+            0,
+            0,
+            0
+          ]
+        ],
+        "cols": [
+          {
+            "display_name": "merchant_name",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "merchant_name",
+              {
+                "base-type": "type/Text"
+              }
+            ],
+            "name": "merchant_name",
+            "base_type": "type/Text",
+            "effective_type": "type/Text"
+          },
+          {
+            "display_name": "merchant_id",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "merchant_id",
+              {
+                "base-type": "type/Text"
+              }
+            ],
+            "name": "merchant_id",
+            "base_type": "type/Text",
+            "effective_type": "type/Text"
+          },
+          {
+            "display_name": "engage_trial_start_date",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "engage_trial_start_date",
+              {
+                "base-type": "type/DateTime"
+              }
+            ],
+            "name": "engage_trial_start_date",
+            "base_type": "type/DateTime",
+            "effective_type": "type/DateTime"
+          },
+          {
+            "display_name": "new_customers_14_to_7_days_pre_trial",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "new_customers_14_to_7_days_pre_trial",
+              {
+                "base-type": "type/BigInteger"
+              }
+            ],
+            "name": "new_customers_14_to_7_days_pre_trial",
+            "base_type": "type/BigInteger",
+            "effective_type": "type/BigInteger"
+          },
+          {
+            "display_name": "new_customers_7_days_pre_trial",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "new_customers_7_days_pre_trial",
+              {
+                "base-type": "type/BigInteger"
+              }
+            ],
+            "name": "new_customers_7_days_pre_trial",
+            "base_type": "type/BigInteger",
+            "effective_type": "type/BigInteger"
+          },
+          {
+            "display_name": "automated_sms_days_in_first_30_days_trial",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "automated_sms_days_in_first_30_days_trial",
+              {
+                "base-type": "type/BigInteger"
+              }
+            ],
+            "name": "automated_sms_days_in_first_30_days_trial",
+            "base_type": "type/BigInteger",
+            "effective_type": "type/BigInteger"
+          }
+        ],
+        "native_form": {
+          "query": "WITH automated_sms_days AS (\n    SELECT DISTINCT\n        cj.business,\n        CAST(DATEADD(HOUR, 8, cj.createdtime) AS DATE) AS send_date\n    FROM\n        storehub_mongo.campaignjobs AS cj\n    WHERE\n        cj.pushstatus = 'SUCCESS'\n        AND cj.globalcampaigninformationid <> '64d4d6b30f005152c96d10cb'\n        AND cj.createdtime >= DATE_TRUNC('year', CURRENT_DATE)\n)\nSELECT\n    b.name AS merchant_name,\n    b._id AS merchant_id,\n    DATEADD(HOUR, 8, b.campaigntrialstartdate) AS engage_trial_start_date,\n    COUNT(DISTINCT CASE\n        WHEN c.createdtime >= DATEADD(DAY, -14, b.campaigntrialstartdate) AND c.createdtime < DATEADD(DAY, -7, b.campaigntrialstartdate)\n        THEN c._id\n    END) AS new_customers_14_to_7_days_pre_trial,\n    COUNT(DISTINCT CASE\n        WHEN c.createdtime >= DATEADD(DAY, -7, b.campaigntrialstartdate) AND c.createdtime <= b.campaigntrialstartdate\n        THEN c._id\n    END) AS new_customers_7_days_pre_trial,\n    COUNT(DISTINCT CASE\n        WHEN sms.send_date > DATEADD(HOUR, 8, b.campaigntrialstartdate) AND sms.send_date <= DATEADD(DAY, 30, DATEADD(HOUR, 8, b.campaigntrialstartdate))\n        THEN sms.send_date\n    END) AS automated_sms_days_in_first_30_days_trial\nFROM\n    storehub_mongo.businesses AS b\nLEFT JOIN\n    transformations.mask_customers AS c ON b.name = c.business\nLEFT JOIN\n    automated_sms_days AS sms ON b.name = sms.business\nWHERE\n    b.country = 'MY'\n    AND b.campaigntrialstartdate IS NOT NULL\n    AND b.campaigntrialstartdate >= DATE_TRUNC('year', CURRENT_DATE)\n    AND CHARINDEX('internal', b.planid) = 0\n    AND CHARINDEX('@storehub.com', b.email) = 0\nGROUP BY\n    b.name,\n    b._id,\n    b.campaigntrialstartdate\nORDER BY\n    engage_trial_start_date ASC;"
+        },
+        "results_timezone": "Asia/Kuala_Lumpur",
+        "requested_timezone": "Asia/Kuala_Lumpur",
+        "results_metadata": {
+          "columns": [
+            {
+              "display_name": "merchant_name",
+              "field_ref": [
+                "field",
+                "merchant_name",
+                {
+                  "base-type": "type/Text"
+                }
+              ],
+              "name": "merchant_name",
+              "base_type": "type/Text",
+              "effective_type": "type/Text",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 65,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Text": {
+                    "percent-json": 0.0,
+                    "percent-url": 0.0,
+                    "percent-email": 0.0,
+                    "percent-state": 0.0,
+                    "average-length": 12.707692307692307
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "merchant_id",
+              "field_ref": [
+                "field",
+                "merchant_id",
+                {
+                  "base-type": "type/Text"
+                }
+              ],
+              "name": "merchant_id",
+              "base_type": "type/Text",
+              "effective_type": "type/Text",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 65,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Text": {
+                    "percent-json": 0.0,
+                    "percent-url": 0.0,
+                    "percent-email": 0.0,
+                    "percent-state": 0.0,
+                    "average-length": 24.0
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "engage_trial_start_date",
+              "field_ref": [
+                "field",
+                "engage_trial_start_date",
+                {
+                  "base-type": "type/DateTime"
+                }
+              ],
+              "name": "engage_trial_start_date",
+              "base_type": "type/DateTime",
+              "effective_type": "type/DateTime",
+              "semantic_type": "type/CreationTimestamp",
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 65,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/DateTime": {
+                    "earliest": "2025-01-02T11:25:49+08:00",
+                    "latest": "2025-07-29T20:24:12+08:00"
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "new_customers_14_to_7_days_pre_trial",
+              "field_ref": [
+                "field",
+                "new_customers_14_to_7_days_pre_trial",
+                {
+                  "base-type": "type/BigInteger"
+                }
+              ],
+              "name": "new_customers_14_to_7_days_pre_trial",
+              "base_type": "type/BigInteger",
+              "effective_type": "type/BigInteger",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 20,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 0.0,
+                    "q1": 0.0,
+                    "q3": 4.675444679663241,
+                    "max": 174.0,
+                    "sd": 37.545626089619795,
+                    "avg": 16.369230769230768
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "new_customers_7_days_pre_trial",
+              "field_ref": [
+                "field",
+                "new_customers_7_days_pre_trial",
+                {
+                  "base-type": "type/BigInteger"
+                }
+              ],
+              "name": "new_customers_7_days_pre_trial",
+              "base_type": "type/BigInteger",
+              "effective_type": "type/BigInteger",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 19,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 0.0,
+                    "q1": 0.0,
+                    "q3": 2.8786796564403576,
+                    "max": 3436.0,
+                    "sd": 425.64781792445046,
+                    "avg": 66.46153846153847
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "automated_sms_days_in_first_30_days_trial",
+              "field_ref": [
+                "field",
+                "automated_sms_days_in_first_30_days_trial",
+                {
+                  "base-type": "type/BigInteger"
+                }
+              ],
+              "name": "automated_sms_days_in_first_30_days_trial",
+              "base_type": "type/BigInteger",
+              "effective_type": "type/BigInteger",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 11,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 0.0,
+                    "q1": 0.0,
+                    "q3": 0.5181757005145816,
+                    "max": 25.0,
+                    "sd": 5.339349571450987,
+                    "avg": 1.7384615384615385
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "insights": null
+      },
+      "cached": false,
+      "database_id": 2,
+      "started_at": "2025-07-30T15:48:05.604196Z",
+      "json_query": {
+        "database": 2,
+        "type": "native",
+        "native": {
+          "query": "WITH automated_sms_days AS (\n    SELECT DISTINCT\n        cj.business,\n        CAST(DATEADD(HOUR, 8, cj.createdtime) AS DATE) AS send_date\n    FROM\n        storehub_mongo.campaignjobs AS cj\n    WHERE\n        cj.pushstatus = 'SUCCESS'\n        AND cj.globalcampaigninformationid <> '64d4d6b30f005152c96d10cb'\n        AND cj.createdtime >= DATE_TRUNC('year', CURRENT_DATE)\n)\nSELECT\n    b.name AS merchant_name,\n    b._id AS merchant_id,\n    DATEADD(HOUR, 8, b.campaigntrialstartdate) AS engage_trial_start_date,\n    COUNT(DISTINCT CASE\n        WHEN c.createdtime >= DATEADD(DAY, -14, b.campaigntrialstartdate) AND c.createdtime < DATEADD(DAY, -7, b.campaigntrialstartdate)\n        THEN c._id\n    END) AS new_customers_14_to_7_days_pre_trial,\n    COUNT(DISTINCT CASE\n        WHEN c.createdtime >= DATEADD(DAY, -7, b.campaigntrialstartdate) AND c.createdtime <= b.campaigntrialstartdate\n        THEN c._id\n    END) AS new_customers_7_days_pre_trial,\n    COUNT(DISTINCT CASE\n        WHEN sms.send_date > DATEADD(HOUR, 8, b.campaigntrialstartdate) AND sms.send_date <= DATEADD(DAY, 30, DATEADD(HOUR, 8, b.campaigntrialstartdate))\n        THEN sms.send_date\n    END) AS automated_sms_days_in_first_30_days_trial\nFROM\n    storehub_mongo.businesses AS b\nLEFT JOIN\n    transformations.mask_customers AS c ON b.name = c.business\nLEFT JOIN\n    automated_sms_days AS sms ON b.name = sms.business\nWHERE\n    b.country = 'MY'\n    AND b.campaigntrialstartdate IS NOT NULL\n    AND b.campaigntrialstartdate >= DATE_TRUNC('year', CURRENT_DATE)\n    AND CHARINDEX('internal', b.planid) = 0\n    AND CHARINDEX('@storehub.com', b.email) = 0\nGROUP BY\n    b.name,\n    b._id,\n    b.campaigntrialstartdate\nORDER BY\n    engage_trial_start_date ASC;"
+        },
+        "middleware": {
+          "js-int-to-string?": true,
+          "add-default-userland-constraints?": true
+        }
+      },
+      "average_execution_time": null,
+      "status": "completed",
+      "context": "ad-hoc",
+      "row_count": 65,
+      "running_time": 17528
+    },
+    "row_count": 65,
+    "query": "WITH automated_sms_days AS (\n    SELECT DISTINCT\n        cj.business,\n        CAST(DATEADD(HOUR, 8, cj.createdtime) AS DATE) AS send_date\n    FROM\n        storehub_mongo.campaignjobs AS cj\n    WHERE\n        cj.pushstatus = 'SUCCESS'\n        AND cj.globalcampaigninformationid <> '64d4d6b30f005152c96d10cb'\n        AND cj.createdtime >= DATE_TRUNC('year', CURRENT_DATE)\n)\nSELECT\n    b.name AS merchant_name,\n    b._id AS merchant_id,\n    DATEADD(HOUR, 8, b.campaigntrialstartdate) AS engage_trial_start_date,\n    COUNT(DISTINCT CASE\n        WHEN c.createdtime >= DATEADD(DAY, -14, b.campaigntrialstartdate) AND c.createdtime < DATEADD(DAY, -7, b.campaigntrialstartdate)\n        THEN c._id\n    END) AS new_customers_14_to_7_days_pre_trial,\n    COUNT(DISTINCT CASE\n        WHEN c.createdtime >= DATEADD(DAY, -7, b.campaigntrialstartdate) AND c.createdtime <= b.campaigntrialstartdate\n        THEN c._id\n    END) AS new_customers_7_days_pre_trial,\n    COUNT(DISTINCT CASE\n        WHEN sms.send_date > DATEADD(HOUR, 8, b.campaigntrialstartdate) AND sms.send_date <= DATEADD(DAY, 30, DATEADD(HOUR, 8, b.campaigntrialstartdate))\n        THEN sms.send_date\n    END) AS automated_sms_days_in_first_30_days_trial\nFROM\n    storehub_mongo.businesses AS b\nLEFT JOIN\n    transformations.mask_customers AS c ON b.name = c.business\nLEFT JOIN\n    automated_sms_days AS sms ON b.name = sms.business\nWHERE\n    b.country = 'MY'\n    AND b.campaigntrialstartdate IS NOT NULL\n    AND b.campaigntrialstartdate >= DATE_TRUNC('year', CURRENT_DATE)\n    AND CHARINDEX('internal', b.planid) = 0\n    AND CHARINDEX('@storehub.com', b.email) = 0\nGROUP BY\n    b.name,\n    b._id,\n    b.campaigntrialstartdate\nORDER BY\n    engage_trial_start_date ASC;"
+  }
+}

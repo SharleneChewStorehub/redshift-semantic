@@ -1,0 +1,3227 @@
+{
+  "file_name": "12_payout_summary_transaction_breakdown.sql",
+  "timestamp": "/Users/sharlenechew/redshift-semantic",
+  "business_question": "To perform a financial audit for the merchant 'piccolilotti' for January 2025, I need a transaction-level reconciliation report. For each online sale, please break down every financial component: gross transaction amount, all fees, logistic costs vs. profits, and the internal cost attribution for any vouchers used.",
+  "golden_sql": "with txn as (\nselect distinct \n    tr.receiptnumber,\n    tr.createdtime,\n    tr.business,\n    b.country,\n    tr._id,\n    tr.status,\n    tr.channel,\n    tr.shippingtype,\n    tr.isdisbursed,\n    tr.total\n    \nfrom storehub_mongo.transactionrecords tr\n\nleft join storehub_mongo.businesses b\n    on b.name = tr.business\n    \nwhere (tr.channel = 1 or tr.channel = 3)\n    and tr.business != 'merchandise'\n    --and tr.status not in ('created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n    and (tr.createdtime >= dateadd(hour,-8,'2025-01-01') and tr.createdtime < dateadd(hour,-8,'2025-02-01'))\n    and tr.business = 'piccolilotti'\n    and b.country = 'MY'\n),\n\npo as (\nselect \n    pi.*,\n    bp.createdtime as bptime\n\nfrom storehub_mongo.payoutitems pi\n\nleft join storehub_mongo.batchpayouts bp\n    on bp._id = pi.batchpayoutid\n)\n/*,\n\npromo as (\nselect \n    trpromo.transactionrecords_foreignkey,\n    sum(trpromo.discount * trpromo.shpercent) as tot_disc\n    \nfrom (\n    select \n        trp.transactionrecords_foreignkey,\n        case \n            when trp.discount is not null and trp.shippingfeediscount is not null then trp.discount + trp.shippingfeediscount\n            when trp.discount is not null then trp.discount\n            when trp.shippingfeediscount is not null then trp.shippingfeediscount\n            else 0 \n        end as discount,\n        trp.storehubpaidpercentage as shpercent\n        --cast(discount as float) * cast(shpercent as float) as tot_discount\n    from storehub_mongo.transactionrecords__promotions trp \n        \n    union\n        \n    select\n        trip.transactionrecords_foreignkey,\n        trip.discount as discount,\n        trip.storehubpaidpercentage as shpercent\n        --sum(discount * shpercent) as tot_discount\n    from storehub_mongo.transactionrecords__items__promotions trip\n    \n    where trip.promotiontype = 'universal' \n        and trip.storehubpaidpercentage > 0\n    ) trpromo\n\ngroup by 1\n)\n*/\n\nselect distinct \n    dateadd(hour,8,txn.createdtime) as \"Transaction time\",\n    dateadd(hour,8,po.bptime) as \"Payout time\",\n    txn.country,\n    txn.business, \n    txn.receiptnumber as \"receipt number\",\n    txn._id as \"transaction id\",\n    txn.status,\n    case \n        when txn.channel = 1 then 'Ecomm'\n        when txn.channel = 3 then 'Beep'\n    end as \"channel\",\n    case\n        when txn.channel = 3 and txn.shippingtype in ('delivery','pickup') then 'Beep Delivery'\n        when txn.channel = 3 and txn.shippingtype in ('takeaway','dineIn') then 'Beep QR'\n        when txn.channel = 1 then 'Ecomm'\n    end as \"channel2\",\n    txn.shippingtype,\n    trdi.usestorehublogistics,\n    trdi.courier,\n    txn.isdisbursed,\n    txn.total as \"Transaction Amount\",\n    --trpm.paymentprovider,\n    --trpm.paymentgateway,\n    --gr.paymentgateway,\n    po.paymentgateway as \"payment gateway\",\n    po.cause as \"Payout reason\",\n    po.amount as \"Payout amount\",\n    --\"Payout amount - Sell\" + \"Payout amount - Adjustment\" as \"Total Payout amount\",\n    -- sum(trav.value) as \"Voucher value\",\n    case \n        when trav._id is not null and trav.purchasechannel = 'cleverTapWebhook' then trav.value\n        when trav._id is not null and trav.purchasechannel = 'ist' and lower(trav.remarks) like 'marketing/%' and trav.remarks not like '%VBeepGiftVouchers/%' then trav.value\n        else 0\n    end as \"Voucher payout - MKT\",\n    case\n        when trav._id is not null and trav.purchasechannel = 'ist' and lower(trav.remarks) like 'people/%' then trav.value\n        else 0\n    end as \"Voucher payout - People\",\n    case\n        when trav._id is not null and trav.purchasechannel = 'ist' and lower(trav.remarks) like 'care/%' then trav.value\n        when trav._id is not null and trav.purchasechannel = 'ist' and trav.remarks = '' then trav.value\n        when trav._id is not null and trav.purchasechannel = 'systemRefund' then trav.value\n        else 0\n    end as \"Voucher payout - Care\",\n    case\n        when trav._id is not null and trav.purchasechannel = 'ist' and lower(trav.remarks) like 'product/%' then trav.value\n        else 0\n    end as \"Voucher payout - Product\",\n    case\n        when trav._id is not null and trav.purchasechannel = 'ist' and trav.remarks like '%VBeepGiftVouchers/%' then trav.value\n        else 0\n    end as \"Voucher payout - Sold\",\n    case\n        when trav._id is not null and trav.purchasechannel = 'ist' and trav.remarks <> '' and (lower(trav.remarks) not like 'product/%' and lower(trav.remarks) not like 'care/%' and lower(trav.remarks) not like 'marketing/%' and lower(trav.remarks) not like 'people/%' and trav.remarks not like '%VBeepGiftVouchers/%') then trav.value \n        when trav._id is not null and trav.purchasechannel = '' then trav.value\n        else 0\n    end as \"Voucher payout - Others\",\n    case\n        when trav._id is not null and trav.purchasechannel = 'beep' then trav.value\n        else 0\n    end as \"Merchant Beep Voucher\",\n    trav.coveredbysh,\n    /*sum(case \n            when trav.purchasechannel = 'beep' then 0\n            when trav._id is not null then trav.value\n            else 0 end) as \"Total voucher payout\",*/\n    (case when po.cause = 'sell' then isnull(gr.fee,0) - isnull(pso.paymentgatewaycost,0) else 0 end) as \"Payment Gateway Cost\",\n    isnull(po.paymentgatewayfee,0) as \"Payment Gateway Fee\",\n    -(\"Payment Gateway Fee\" - \"Payment Gateway Cost\") as \"Payment Gateway Profit\",\n    (case when po.cause = 'sell' then trdi.shippingfee else 0 end) as \"Customer paid delivery fee\",\n    -(case when po.cause = 'sell' and trdi.courier != 'onfleet' then trdi.deliveryfee else 0 end) as \"Logistic Cost (OnFleet excluded)\",\n    (case when trdi.courier != 'onfleet' then po.logisticsfee else 0 end) as \"Logistic Fee (OnFleet excluded)\",\n    -(\"Logistic Fee (OnFleet excluded)\" - \"Logistic Cost (OnFleet excluded)\") as \"Logistic Profit (Onfleet excluded)\",\n    -(po.transactionfee) as \"Storehub Fee (Transaction Fee)\",\n    --count(distinct pi.receiptnumber) as \"# of txn\",\n    (case when trdi.courier = 'onfleet' then po.logisticsfee else 0 end) as \"Logistic Fee (OnFleet only)\",\n    --sum(case when pi.cause = 'adjustment' then pi.amount else 0 end) as \"Adjustment Amount\",\n    --(case when po.cause = 'sell' then isnull(promo.tot_disc,0) else 0 end) as \"Storehub Paid Promo Discount\",\n    (case when po.cause = 'sell' then isnull(po.promotionamount,0) else 0 end) as \"Storehub Paid Promo Amount\",\n    --(case when po.cause = 'sell' then isnull(po.voucheramount,0) else 0 end) as \"Storehub Paid Voucher Amount\",\n    (case when po.cause = 'sell' then isnull(po.refundedamount,0) else 0 end) as \"Refunded Amount\",\n    (case when po.cause = 'sell' then po.pickupsmsfee else 0 end) as \"pick up sms fee\"\n\nfrom txn\n    \nleft join po \n    on po.receiptnumber = txn.receiptnumber\n\n--left join promo\n--    on promo.transactionrecords_foreignkey = txn._id\n\nleft join (\n    select \n        ta._id,\n        ta.voucherid,\n        ta.purchasechannel,\n        vc.remarks, \n        ta.value,\n        ta.transactionrecords_foreignkey,\n        ta.coveredbysh\n    from storehub_mongo.transactionrecords__appliedvoucher ta\n    left join storehub_mongo.vouchers vc\n        on ta.voucherid = vc._id\n    ) trav\n    on trav.transactionrecords_foreignkey = txn._id\n\nleft join storehub_mongo.transactionrecords__deliveryinformation trdi \n    on trdi.transactionrecords_foreignkey = txn._id\n    \nleft join (\n    select * \n    from storehub_mongo.gatewayrecords gr\n    where gr.transactiontype = 'payment' \n        and gr.reconstatus = 'passed'\n    ) gr \n    on gr.receiptnumber = po.receiptnumber\n\nleft join storehub_mongo.paymentsettlements__orders pso \n    on pso.receiptnumber = txn.receiptnumber\n\nleft join storehub_mongo.transactionrecords__payments trpm \n    on trpm.transactionrecords_foreignkey = txn._id\n\nwhere txn.status not in ('created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n    --and (tr.channel = 1 or tr.channel = 3)\n    --and (pi.cause = 'sell' or pi.cause = 'cancel')\n    --and tr.business != 'merchandise'\n    --and NOT (lower(b.\"planid\") like '%internal%')\n    --AND tr.\"status\" <> 'cancelled' AND tr.\"status\" <> 'failed' AND tr.\"status\" <> 'paymentCancelled' AND tr.\"status\" <> 'pendingPayment' AND tr.\"status\" <> 'pendingVerification' AND tr.\"status\" <> 'created'\n    --and tr.receiptnumber in ('803984100346862','802709001037705','803678576452200','802351208741894','803917265829970','803614169112991','803539823849427')\n    --and txn.receiptnumber in ('807865893205675','807247408750412','807247613545480')\n\n--group by 1,2,3,4,5,6,7,8,9,10,11,12,13\norder by \"Transaction time\" desc,  \"receipt number\" ASC, \"Payout reason\" DESC",
+  "ai_generated_sql": "WITH transactions AS (\n    SELECT\n        tr._id,\n        tr.receiptnumber,\n        tr.createdtime,\n        tr.business,\n        tr.total AS gross_transaction_amount\n    FROM\n        storehub_mongo.transactionrecords AS tr\n    WHERE\n        tr.business = 'piccolilotti'\n        AND tr.createdtime >= DATEADD(hour, -8, '2025-01-01')\n        AND tr.createdtime < DATEADD(hour, -8, '2025-02-01')\n        AND tr.channel IN (1, 3)\n        AND tr.status NOT IN ('created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n),\npayouts AS (\n    SELECT\n        pi.receiptnumber,\n        pi.amount,\n        pi.cause,\n        pi.paymentgatewayfee,\n        pi.logisticsfee,\n        pi.transactionfee,\n        pi.promotionamount,\n        pi.refundedamount,\n        bp.createdtime AS payout_time\n    FROM\n        storehub_mongo.payoutitems AS pi\n    LEFT JOIN\n        storehub_mongo.batchpayouts AS bp ON pi.batchpayoutid = bp._id\n),\nvouchers AS (\n    SELECT\n        tav.transactionrecords_foreignkey,\n        SUM(CASE WHEN tav.purchasechannel = 'cleverTapWebhook' OR (tav.purchasechannel = 'ist' AND LOWER(vc.remarks) LIKE 'marketing/%' AND vc.remarks NOT LIKE '%VBeepGiftVouchers/%') THEN tav.value ELSE 0 END) AS voucher_cost_marketing,\n        SUM(CASE WHEN tav.purchasechannel = 'ist' AND LOWER(vc.remarks) LIKE 'people/%' THEN tav.value ELSE 0 END) AS voucher_cost_people,\n        SUM(CASE WHEN tav.purchasechannel = 'ist' AND (LOWER(vc.remarks) LIKE 'care/%' OR vc.remarks = '') OR tav.purchasechannel = 'systemRefund' THEN tav.value ELSE 0 END) AS voucher_cost_care,\n        SUM(CASE WHEN tav.purchasechannel = 'ist' AND LOWER(vc.remarks) LIKE 'product/%' THEN tav.value ELSE 0 END) AS voucher_cost_product,\n        SUM(CASE WHEN tav.purchasechannel = 'ist' AND vc.remarks LIKE '%VBeepGiftVouchers/%' THEN tav.value ELSE 0 END) AS voucher_cost_sold,\n        SUM(CASE WHEN tav.purchasechannel = 'beep' THEN tav.value ELSE 0 END) AS merchant_funded_voucher,\n        SUM(CASE WHEN (tav.purchasechannel = 'ist' AND vc.remarks <> '' AND LOWER(vc.remarks) NOT LIKE 'product/%' AND LOWER(vc.remarks) NOT LIKE 'care/%' AND LOWER(vc.remarks) NOT LIKE 'marketing/%' AND LOWER(vc.remarks) NOT LIKE 'people/%' AND vc.remarks NOT LIKE '%VBeepGiftVouchers/%') OR tav.purchasechannel = '' THEN tav.value ELSE 0 END) AS voucher_cost_others\n    FROM\n        storehub_mongo.transactionrecords__appliedvoucher AS tav\n    LEFT JOIN\n        storehub_mongo.vouchers AS vc ON tav.voucherid = vc._id\n    GROUP BY\n        1\n)\nSELECT\n    DATEADD(hour, 8, txn.createdtime) AS transaction_time,\n    DATEADD(hour, 8, po.payout_time) AS payout_time,\n    txn.business AS merchant_name,\n    txn.receiptnumber,\n    txn._id AS transaction_id,\n    txn.gross_transaction_amount,\n    po.amount AS net_payout_amount,\n    po.refundedamount AS refunded_amount,\n    -po.paymentgatewayfee AS payment_gateway_fee,\n    CASE WHEN po.cause = 'sell' THEN -(ISNULL(gr.fee, 0) - ISNULL(pso.paymentgatewaycost, 0)) ELSE 0 END AS payment_gateway_cost,\n    (CASE WHEN po.cause = 'sell' THEN -(ISNULL(gr.fee, 0) - ISNULL(pso.paymentgatewaycost, 0)) ELSE 0 END) - (-po.paymentgatewayfee) AS payment_gateway_profit_loss,\n    trdi.shippingfee AS customer_paid_delivery_fee,\n    -po.logisticsfee AS logistic_fee,\n    CASE WHEN po.cause = 'sell' THEN -trdi.deliveryfee ELSE 0 END AS logistic_cost,\n    (-po.logisticsfee) - (CASE WHEN po.cause = 'sell' THEN -trdi.deliveryfee ELSE 0 END) AS logistic_profit_loss,\n    -po.transactionfee AS storehub_fee,\n    -po.promotionamount AS storehub_funded_promo,\n    -v.voucher_cost_marketing AS voucher_cost_marketing,\n    -v.voucher_cost_people AS voucher_cost_people,\n    -v.voucher_cost_care AS voucher_cost_care,\n    -v.voucher_cost_product AS voucher_cost_product,\n    -v.voucher_cost_sold AS voucher_cost_sold,\n    -v.voucher_cost_others AS voucher_cost_others,\n    -v.merchant_funded_voucher AS merchant_funded_voucher\nFROM\n    transactions AS txn\nLEFT JOIN\n    payouts AS po ON txn.receiptnumber = po.receiptnumber\nLEFT JOIN\n    vouchers AS v ON txn._id = v.transactionrecords_foreignkey\nLEFT JOIN\n    storehub_mongo.transactionrecords__deliveryinformation AS trdi ON txn._id = trdi.transactionrecords_foreignkey\nLEFT JOIN\n    (SELECT receiptnumber, fee FROM storehub_mongo.gatewayrecords WHERE transactiontype = 'payment' AND reconstatus = 'passed') AS gr ON po.receiptnumber = gr.receiptnumber\nLEFT JOIN\n    storehub_mongo.paymentsettlements__orders AS pso ON txn.receiptnumber = pso.receiptnumber\nORDER BY\n    transaction_time DESC,\n    txn.receiptnumber,\n    po.cause DESC;",
+  "api_result": {
+    "success": true,
+    "status_code": 202,
+    "data": {
+      "data": {
+        "rows": [
+          [
+            "2025-01-31T23:58:30+08:00",
+            "2025-02-07T14:23:47+08:00",
+            "piccolilotti",
+            "853633988477804",
+            "679cf3267b505b5ba746d077",
+            66.0,
+            54.69,
+            0.0,
+            1.19,
+            0.97,
+            -0.21999999999999997,
+            0.0,
+            5.5,
+            -6.75,
+            12.25,
+            4.62,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-31T20:51:05+08:00",
+            "2025-02-04T14:52:59+08:00",
+            "piccolilotti",
+            "853632560129881",
+            "679cc739773b535b588c21a0",
+            60.0,
+            57.72,
+            0.0,
+            1.08,
+            0.88,
+            -0.20000000000000007,
+            null,
+            -0.0,
+            null,
+            null,
+            1.2,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-31T15:23:54+08:00",
+            "2025-02-04T14:52:59+08:00",
+            "piccolilotti",
+            "853634623731162",
+            "679c7a8a3d792c72fe67c16a",
+            138.0,
+            133.17,
+            0.0,
+            2.07,
+            1.1,
+            -0.9699999999999998,
+            null,
+            -0.0,
+            null,
+            null,
+            2.76,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-31T12:51:57+08:00",
+            "2025-02-04T14:52:59+08:00",
+            "piccolilotti",
+            "853629988563227",
+            "679c56eda51ff77217b497af",
+            133.0,
+            127.95,
+            0.0,
+            2.39,
+            4.35,
+            1.9599999999999995,
+            null,
+            -0.0,
+            null,
+            null,
+            2.66,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-31T12:28:38+08:00",
+            "2025-02-04T14:52:59+08:00",
+            "piccolilotti",
+            "853629558652512",
+            "679c5176a51ff75a3cb3aacd",
+            66.0,
+            54.69,
+            0.0,
+            1.19,
+            0.97,
+            -0.21999999999999997,
+            0.0,
+            5.5,
+            -6.75,
+            12.25,
+            4.62,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-31T12:26:21+08:00",
+            "2025-02-04T14:52:59+08:00",
+            "piccolilotti",
+            "853629516812264",
+            "679c50edcd867a51dcb4f4af",
+            66.0,
+            54.69,
+            0.0,
+            1.19,
+            0.97,
+            -0.21999999999999997,
+            0.0,
+            5.5,
+            -6.75,
+            12.25,
+            4.62,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-31T10:51:51+08:00",
+            "2025-02-04T14:52:59+08:00",
+            "piccolilotti",
+            "853629898873769",
+            "679c3ac77b505bf1d12ded99",
+            89.0,
+            75.67,
+            0.0,
+            1.6,
+            3.24,
+            1.6400000000000001,
+            0.0,
+            5.5,
+            -1.0,
+            6.5,
+            6.23,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-30T20:06:46+08:00",
+            "2025-02-04T14:52:59+08:00",
+            "piccolilotti",
+            "853623664011761",
+            "679b6b56ff6acf02374c3934",
+            126.0,
+            108.86,
+            0.0,
+            1.89,
+            1.27,
+            -0.6199999999999999,
+            1.0,
+            6.5,
+            -7.25,
+            13.75,
+            8.75,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-30T19:03:15+08:00",
+            "2025-02-04T14:52:59+08:00",
+            "piccolilotti",
+            "853623799188425",
+            "679b5c73f8381eea3b1ebbec",
+            68.0,
+            54.66,
+            0.0,
+            1.22,
+            0.99,
+            -0.22999999999999998,
+            2.0,
+            7.5,
+            -6.25,
+            13.75,
+            4.62,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-30T17:23:53+08:00",
+            "2025-02-04T14:52:59+08:00",
+            "piccolilotti",
+            "853622943318225",
+            "679b45291aaf3b04d3493f48",
+            108.0,
+            104.22,
+            0.0,
+            1.62,
+            1.09,
+            -0.53,
+            null,
+            -0.0,
+            null,
+            null,
+            2.16,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-30T15:56:40+08:00",
+            "2025-02-04T14:52:59+08:00",
+            "piccolilotti",
+            "853622364465966",
+            "679b30b93d792c1c35494174",
+            93.0,
+            79.59,
+            0.0,
+            1.4,
+            0.74,
+            -0.6599999999999999,
+            0.0,
+            5.5,
+            -6.25,
+            11.75,
+            6.51,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-29T20:11:40+08:00",
+            "2025-01-31T13:39:52+08:00",
+            "piccolilotti",
+            "853681254490890",
+            "679a1afd7b505b7626059fd4",
+            58.0,
+            47.4,
+            0.0,
+            1.04,
+            0.86,
+            -0.18000000000000005,
+            0.0,
+            5.5,
+            -5.75,
+            11.25,
+            4.06,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-29T19:10:35+08:00",
+            "2025-01-31T13:39:52+08:00",
+            "piccolilotti",
+            "853687943145795",
+            "679a0cab5e60026398853b88",
+            63.0,
+            51.96,
+            0.0,
+            1.13,
+            0.91,
+            -0.21999999999999986,
+            0.0,
+            5.5,
+            -6.25,
+            11.75,
+            4.41,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-29T18:44:01+08:00",
+            "2025-01-31T13:39:52+08:00",
+            "piccolilotti",
+            "853687577882868",
+            "679a06715e6002b9c08459d8",
+            77.0,
+            56.58,
+            0.0,
+            1.16,
+            0.78,
+            -0.3799999999999999,
+            9.0,
+            14.5,
+            -22.0,
+            36.5,
+            4.76,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-29T17:09:56+08:00",
+            "2025-01-31T13:39:52+08:00",
+            "piccolilotti",
+            "853687859074790",
+            "6799f0648f257b0cffa878be",
+            95.0,
+            81.14,
+            0.0,
+            1.71,
+            1.26,
+            -0.44999999999999996,
+            0.0,
+            5.5,
+            -6.25,
+            11.75,
+            6.65,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-29T13:01:39+08:00",
+            "2025-01-31T13:39:52+08:00",
+            "piccolilotti",
+            "853682069961160",
+            "6799b6345e600262c276e305",
+            111.0,
+            93.27,
+            0.0,
+            1.67,
+            0.89,
+            -0.7799999999999999,
+            3.0,
+            8.5,
+            -7.75,
+            16.25,
+            7.56,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-28T19:53:31+08:00",
+            "2025-01-31T13:39:52+08:00",
+            "piccolilotti",
+            "853640128883971",
+            "6798c53b8ca89e00a602afa8",
+            69.0,
+            51.85,
+            0.0,
+            1.24,
+            1.0,
+            -0.24,
+            6.0,
+            11.5,
+            -16.0,
+            27.5,
+            4.41,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-28T13:51:00+08:00",
+            "2025-01-31T13:39:52+08:00",
+            "piccolilotti",
+            "853647370499224",
+            "679870455e60023fd65b6c43",
+            60.0,
+            49.22,
+            0.0,
+            1.08,
+            0.88,
+            -0.20000000000000007,
+            0.0,
+            5.5,
+            -1.0,
+            6.5,
+            4.2,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-28T13:06:32+08:00",
+            "2025-01-31T13:39:52+08:00",
+            "piccolilotti",
+            "853647459273628",
+            "679865d88ca89e2f68f4fb64",
+            66.0,
+            54.69,
+            0.0,
+            1.19,
+            0.97,
+            -0.21999999999999997,
+            0.0,
+            5.5,
+            -6.75,
+            12.25,
+            4.62,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-28T13:05:00+08:00",
+            "2025-01-31T13:39:52+08:00",
+            "piccolilotti",
+            "853647454428126",
+            "6798657c220482e43066c16d",
+            60.0,
+            49.22,
+            0.0,
+            1.08,
+            0.91,
+            -0.17000000000000004,
+            0.0,
+            5.5,
+            -6.75,
+            12.25,
+            4.2,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-28T13:00:57+08:00",
+            "2025-01-31T13:39:52+08:00",
+            "piccolilotti",
+            "853647471525930",
+            "679864895e6002508359c49b",
+            133.0,
+            127.95,
+            0.0,
+            2.39,
+            1.61,
+            -0.78,
+            null,
+            -0.0,
+            null,
+            null,
+            2.66,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-28T11:41:36+08:00",
+            null,
+            "piccolilotti",
+            "853643109098520",
+            "679851f17b505bc73fd93164",
+            95.0,
+            null,
+            null,
+            null,
+            0.0,
+            null,
+            0.0,
+            null,
+            0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-28T10:17:04+08:00",
+            "2025-01-31T13:39:52+08:00",
+            "piccolilotti",
+            "853643402780653",
+            "67983e205e600262c4544b1e",
+            108.0,
+            103.9,
+            0.0,
+            1.94,
+            1.36,
+            -0.5799999999999998,
+            null,
+            -0.0,
+            null,
+            null,
+            2.16,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-28T03:34:10+08:00",
+            "2025-01-31T13:39:52+08:00",
+            "piccolilotti",
+            "853644071404593",
+            "6797dfb25e6002247c514347",
+            108.0,
+            93.0,
+            0.0,
+            1.94,
+            1.39,
+            -0.55,
+            0.0,
+            5.5,
+            -5.75,
+            11.25,
+            7.56,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-28T01:43:47+08:00",
+            "2025-01-31T13:39:52+08:00",
+            "piccolilotti",
+            "853599962536704",
+            "6797c5d30be9e5f3cf981126",
+            133.0,
+            127.95,
+            0.0,
+            2.39,
+            1.64,
+            -0.7500000000000002,
+            null,
+            -0.0,
+            null,
+            null,
+            2.66,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-27T10:19:51+08:00",
+            "2025-01-31T13:39:52+08:00",
+            "piccolilotti",
+            "853597739859368",
+            "6796ed487b505b4c26bc25c7",
+            118.0,
+            102.12,
+            0.0,
+            2.12,
+            1.46,
+            -0.6600000000000001,
+            0.0,
+            5.5,
+            -5.25,
+            10.75,
+            8.26,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-26T16:09:26+08:00",
+            "2025-01-31T13:39:52+08:00",
+            "piccolilotti",
+            "853565690019588",
+            "6795edb60be9e5a3ba6bf596",
+            65.0,
+            53.97,
+            0.0,
+            0.98,
+            0.52,
+            -0.45999999999999996,
+            0.0,
+            5.5,
+            -1.0,
+            6.5,
+            4.55,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-26T11:10:28+08:00",
+            "2025-01-31T13:39:52+08:00",
+            "piccolilotti",
+            "853560842636759",
+            "6795a7a40be9e5016b600eca",
+            143.0,
+            137.57,
+            0.0,
+            2.57,
+            1.74,
+            -0.8299999999999998,
+            null,
+            -0.0,
+            null,
+            null,
+            2.86,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-26T10:29:04+08:00",
+            "2025-02-04T14:52:59+08:00",
+            "piccolilotti",
+            "853561617768072",
+            "67959df0f1e592cd8a3a6669",
+            155.0,
+            124.7,
+            0.0,
+            2.79,
+            1.85,
+            -0.94,
+            12.0,
+            17.5,
+            -22.0,
+            39.5,
+            10.01,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-25T15:52:10+08:00",
+            "2025-01-28T13:24:10+08:00",
+            "piccolilotti",
+            "853559813427186",
+            "6794982a8ca89e1f2b9ba8ba",
+            72.0,
+            58.52,
+            0.0,
+            1.08,
+            0.58,
+            -0.5000000000000001,
+            2.0,
+            7.5,
+            -8.25,
+            15.75,
+            4.9,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-24T22:02:12+08:00",
+            "2025-01-31T13:39:52+08:00",
+            "piccolilotti",
+            "853552533284132",
+            "67939d64f1e5925878130107",
+            144.0,
+            125.33,
+            0.0,
+            2.16,
+            1.15,
+            -1.0100000000000002,
+            1.0,
+            6.5,
+            -1.0,
+            7.5,
+            10.01,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-24T18:51:22+08:00",
+            "2025-01-28T13:24:10+08:00",
+            "piccolilotti",
+            "853558166243090",
+            "679370aa0be9e559522fd637",
+            94.0,
+            76.51,
+            0.0,
+            1.69,
+            1.22,
+            -0.47,
+            4.0,
+            9.5,
+            -8.25,
+            17.75,
+            6.3,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-24T14:39:42+08:00",
+            "2025-01-28T13:24:10+08:00",
+            "piccolilotti",
+            "853554456299468",
+            "679335afdac83f216d9d713c",
+            68.0,
+            56.52,
+            0.0,
+            1.22,
+            0.99,
+            -0.22999999999999998,
+            0.0,
+            5.5,
+            -5.75,
+            11.25,
+            4.76,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-24T13:36:47+08:00",
+            "2025-01-28T13:24:10+08:00",
+            "piccolilotti",
+            "853509544518837",
+            "679326efdac83f33bc9b4e6b",
+            179.0,
+            152.75,
+            0.0,
+            3.22,
+            2.09,
+            -1.1300000000000003,
+            0.0,
+            10.5,
+            -8.75,
+            19.25,
+            12.53,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-23T19:00:08+08:00",
+            "2025-01-28T13:24:10+08:00",
+            "piccolilotti",
+            "853503444644720",
+            "67922138e81121e93597a62d",
+            76.0,
+            53.58,
+            0.0,
+            1.37,
+            1.07,
+            -0.30000000000000004,
+            11.0,
+            16.5,
+            -23.0,
+            39.5,
+            4.55,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-23T18:06:48+08:00",
+            "2025-01-28T13:24:10+08:00",
+            "piccolilotti",
+            "853502064656080",
+            "679214b8dac83fc216867f69",
+            76.0,
+            63.81,
+            0.0,
+            1.37,
+            1.04,
+            -0.33000000000000007,
+            0.0,
+            5.5,
+            -1.0,
+            6.5,
+            5.32,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-23T17:45:54+08:00",
+            "2025-01-28T13:24:10+08:00",
+            "piccolilotti",
+            "853502111784735",
+            "67920fd2dac83f182d85de0f",
+            145.0,
+            120.23,
+            0.0,
+            2.61,
+            1.76,
+            -0.8499999999999999,
+            7.0,
+            12.5,
+            -8.75,
+            21.25,
+            9.66,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-23T16:00:35+08:00",
+            "2025-01-28T13:24:10+08:00",
+            "piccolilotti",
+            "853508923149668",
+            "6791f723e8112156b592868e",
+            100.0,
+            85.7,
+            0.0,
+            1.8,
+            1.28,
+            -0.52,
+            0.0,
+            5.5,
+            -5.75,
+            11.25,
+            7.0,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-22T16:06:31+08:00",
+            "2025-01-24T12:52:49+08:00",
+            "piccolilotti",
+            "853513389896684",
+            "6790a708dac83f6e6367afcb",
+            139.0,
+            120.34,
+            0.0,
+            2.5,
+            1.7,
+            -0.8,
+            1.0,
+            6.5,
+            -6.75,
+            13.25,
+            9.66,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-22T15:37:25+08:00",
+            "2025-01-24T12:52:49+08:00",
+            "piccolilotti",
+            "853513877141724",
+            "6790a035cbc1407441be152a",
+            73.0,
+            61.08,
+            0.0,
+            1.31,
+            1.01,
+            -0.30000000000000004,
+            0.0,
+            5.5,
+            -6.25,
+            11.75,
+            5.11,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-21T21:37:37+08:00",
+            "2025-01-24T12:52:49+08:00",
+            "piccolilotti",
+            "853570001549218",
+            "678fa321dac83f62bc5674fb",
+            63.0,
+            49.17,
+            0.0,
+            1.13,
+            0.91,
+            -0.21999999999999986,
+            3.0,
+            8.5,
+            -7.75,
+            16.25,
+            4.2,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-21T20:25:36+08:00",
+            "2025-01-24T12:52:49+08:00",
+            "piccolilotti",
+            "853570233078670",
+            "678f9240dac83fcba153fb35",
+            76.0,
+            63.81,
+            0.0,
+            1.37,
+            1.04,
+            -0.33000000000000007,
+            0.0,
+            5.5,
+            -6.25,
+            11.75,
+            5.32,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-21T20:04:37+08:00",
+            "2025-01-24T12:52:49+08:00",
+            "piccolilotti",
+            "853570845527618",
+            "678f8d558fd20068f1b58057",
+            72.0,
+            58.3,
+            0.0,
+            1.3,
+            1.0,
+            -0.30000000000000004,
+            2.0,
+            7.5,
+            -7.25,
+            14.75,
+            4.9,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-21T10:15:48+08:00",
+            "2025-01-24T12:52:49+08:00",
+            "piccolilotti",
+            "853572157638826",
+            "678f0354c3621702bcf1b249",
+            69.0,
+            56.5,
+            0.0,
+            1.24,
+            0.97,
+            -0.27,
+            1.0,
+            6.5,
+            -6.75,
+            13.25,
+            4.76,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-19T13:05:56+08:00",
+            "2025-01-22T13:52:45+08:00",
+            "piccolilotti",
+            "853520381091479",
+            "678c88348fd200d4ef7694b3",
+            76.0,
+            63.81,
+            0.0,
+            1.37,
+            1.07,
+            -0.30000000000000004,
+            0.0,
+            5.5,
+            -6.75,
+            12.25,
+            5.32,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-19T11:48:38+08:00",
+            "2025-01-22T13:52:45+08:00",
+            "piccolilotti",
+            "853521618633026",
+            "678c7617e811212de024158b",
+            69.0,
+            53.71,
+            0.0,
+            1.24,
+            1.0,
+            -0.24,
+            4.0,
+            9.5,
+            -1.0,
+            10.5,
+            4.55,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-18T15:05:17+08:00",
+            "2025-01-21T14:12:11+08:00",
+            "piccolilotti",
+            "853586398522010",
+            "678b52ad8fd20026095b67d9",
+            119.0,
+            102.45,
+            0.0,
+            1.79,
+            1.2,
+            -0.5900000000000001,
+            1.0,
+            6.5,
+            -1.0,
+            7.5,
+            8.26,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-18T11:28:51+08:00",
+            "2025-01-21T14:12:11+08:00",
+            "piccolilotti",
+            "853585493860689",
+            "678b1ff3c362170b559eac17",
+            109.0,
+            88.33,
+            0.0,
+            1.96,
+            1.37,
+            -0.5899999999999999,
+            6.0,
+            11.5,
+            -1.0,
+            12.5,
+            7.21,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-16T19:09:01+08:00",
+            "2025-01-21T14:12:11+08:00",
+            "piccolilotti",
+            "853542157883920",
+            "6788e8cddac83f7b46bef458",
+            80.0,
+            63.74,
+            0.0,
+            1.44,
+            1.08,
+            -0.3599999999999999,
+            4.0,
+            9.5,
+            -12.0,
+            21.5,
+            5.32,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-16T18:12:42+08:00",
+            "2025-01-21T14:12:11+08:00",
+            "piccolilotti",
+            "853542230227855",
+            "6788db9acbc140719528b276",
+            143.0,
+            119.76,
+            0.0,
+            2.15,
+            1.14,
+            -1.01,
+            6.0,
+            11.5,
+            -8.75,
+            20.25,
+            9.59,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-16T16:14:13+08:00",
+            "2025-01-21T14:12:11+08:00",
+            "piccolilotti",
+            "853548121744817",
+            "6788bfd6cbc140a056255676",
+            107.0,
+            88.36,
+            0.0,
+            1.93,
+            1.35,
+            -0.5799999999999998,
+            4.0,
+            9.5,
+            -8.25,
+            17.75,
+            7.21,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-16T00:27:56+08:00",
+            "2025-01-21T14:12:11+08:00",
+            "piccolilotti",
+            "853091675046262",
+            "6787e20c8fd20096e118ef0c",
+            73.0,
+            61.29,
+            0.0,
+            1.1,
+            0.74,
+            -0.3600000000000001,
+            0.0,
+            5.5,
+            -1.0,
+            6.5,
+            5.11,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-15T20:43:33+08:00",
+            "2025-01-17T12:40:06+08:00",
+            "piccolilotti",
+            "853097148382210",
+            "6787ad75cbc140778d1543ac",
+            80.0,
+            63.74,
+            0.0,
+            1.44,
+            1.08,
+            -0.3599999999999999,
+            4.0,
+            9.5,
+            -7.75,
+            17.25,
+            5.32,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-15T18:13:11+08:00",
+            "2025-01-21T14:12:11+08:00",
+            "piccolilotti",
+            "853093199853068",
+            "67878a37f6ee5c020262f41e",
+            92.0,
+            76.54,
+            0.0,
+            1.66,
+            1.2,
+            -0.45999999999999996,
+            2.0,
+            7.5,
+            -1.0,
+            8.5,
+            6.3,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-15T13:59:51+08:00",
+            "2025-01-17T12:40:06+08:00",
+            "piccolilotti",
+            "853092459854053",
+            "67874ed760341f7404a8e795",
+            78.0,
+            60.99,
+            0.0,
+            1.4,
+            1.09,
+            -0.30999999999999983,
+            5.0,
+            10.5,
+            -9.75,
+            20.25,
+            5.11,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-14T15:31:42+08:00",
+            "2025-01-17T12:40:06+08:00",
+            "piccolilotti",
+            "853063994269071",
+            "678612de85c7cb508edeb81b",
+            134.0,
+            108.34,
+            0.0,
+            2.41,
+            1.62,
+            -0.79,
+            9.0,
+            14.5,
+            -16.0,
+            30.5,
+            8.75,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-14T12:50:46+08:00",
+            "2025-01-17T12:40:06+08:00",
+            "piccolilotti",
+            "853063427023088",
+            "6785ed267dee5470221575cd",
+            67.0,
+            53.94,
+            0.0,
+            1.01,
+            0.54,
+            -0.47,
+            2.0,
+            7.5,
+            -7.25,
+            14.75,
+            4.55,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-14T07:31:27+08:00",
+            "2025-01-17T12:40:06+08:00",
+            "piccolilotti",
+            "853068846532136",
+            "6785a24f675c8e313e00aaca",
+            140.0,
+            120.32,
+            0.0,
+            2.52,
+            1.68,
+            -0.8400000000000001,
+            2.0,
+            7.5,
+            -7.25,
+            14.75,
+            9.66,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-12T16:15:21+08:00",
+            "2025-01-15T15:23:27+08:00",
+            "piccolilotti",
+            "853000952843557",
+            "67837a19d65a8922b76f4b8c",
+            72.0,
+            58.52,
+            0.0,
+            1.08,
+            0.58,
+            -0.5000000000000001,
+            2.0,
+            7.5,
+            -1.0,
+            8.5,
+            4.9,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-12T01:28:21+08:00",
+            "2025-01-15T15:23:27+08:00",
+            "piccolilotti",
+            "853008014830302",
+            "6782aa3585c7cb09779a3775",
+            102.0,
+            81.01,
+            0.0,
+            1.84,
+            1.3,
+            -0.54,
+            7.0,
+            12.5,
+            -1.0,
+            13.5,
+            6.65,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-11T12:30:51+08:00",
+            "2025-01-14T15:10:31+08:00",
+            "piccolilotti",
+            "853010961800599",
+            "6781f3fb675c8e8841b0a331",
+            62.0,
+            49.37,
+            0.0,
+            0.93,
+            0.5,
+            -0.43000000000000005,
+            2.0,
+            7.5,
+            -1.0,
+            8.5,
+            4.2,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-10T19:27:50+08:00",
+            "2025-01-14T15:10:31+08:00",
+            "piccolilotti",
+            "853014675441262",
+            "67810436d65a892589341d8d",
+            98.0,
+            83.88,
+            0.0,
+            1.76,
+            1.26,
+            -0.5,
+            0.0,
+            5.5,
+            -5.75,
+            11.25,
+            6.86,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-10T17:16:12+08:00",
+            "2025-01-14T15:10:31+08:00",
+            "piccolilotti",
+            "853014415233912",
+            "6780e55cf6ee5c78f9dbdcdb",
+            103.0,
+            88.44,
+            0.0,
+            1.85,
+            1.31,
+            -0.54,
+            0.0,
+            5.5,
+            -1.0,
+            6.5,
+            7.21,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-10T15:01:59+08:00",
+            "2025-01-14T15:10:31+08:00",
+            "piccolilotti",
+            "853079218938737",
+            "6780c5e7675c8e3b179789db",
+            72.0,
+            58.3,
+            0.0,
+            1.3,
+            1.0,
+            -0.30000000000000004,
+            2.0,
+            7.5,
+            -7.25,
+            14.75,
+            4.9,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-09T18:42:39+08:00",
+            "2025-01-14T15:10:31+08:00",
+            "piccolilotti",
+            "853078931991926",
+            "677fa81fd65a89d5991598cc",
+            144.0,
+            120.68,
+            0.0,
+            2.16,
+            1.15,
+            -1.0100000000000002,
+            6.0,
+            11.5,
+            -8.75,
+            20.25,
+            9.66,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-08T20:00:05+08:00",
+            "2025-01-14T15:10:31+08:00",
+            "piccolilotti",
+            "853033504177964",
+            "677e68c5eb218236f56f047d",
+            61.0,
+            49.2,
+            0.0,
+            1.1,
+            0.92,
+            -0.18000000000000005,
+            1.0,
+            6.5,
+            -6.75,
+            13.25,
+            4.2,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-08T18:41:35+08:00",
+            "2025-01-10T15:09:58+08:00",
+            "piccolilotti",
+            "853033269135812",
+            "677e565fe4be50e201e7dad3",
+            112.0,
+            93.26,
+            0.0,
+            1.68,
+            0.9,
+            -0.7799999999999999,
+            4.0,
+            9.5,
+            -7.75,
+            17.25,
+            7.56,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-08T12:49:44+08:00",
+            "2025-01-10T15:09:58+08:00",
+            "piccolilotti",
+            "853038856788700",
+            "677e03e801a1e265305b9dbc",
+            72.0,
+            58.3,
+            0.0,
+            1.3,
+            1.0,
+            -0.30000000000000004,
+            2.0,
+            7.5,
+            -7.25,
+            14.75,
+            4.9,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-05T16:23:43+08:00",
+            "2025-01-08T14:24:53+08:00",
+            "piccolilotti",
+            "853040172358959",
+            "677a418fe4be506332909be6",
+            74.0,
+            58.49,
+            0.0,
+            1.11,
+            0.59,
+            -0.5200000000000001,
+            4.0,
+            9.5,
+            -9.75,
+            19.25,
+            4.9,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-03T20:53:04+08:00",
+            "2025-01-07T14:39:58+08:00",
+            "piccolilotti",
+            "853194656750654",
+            "6777ddb0c53975663b794c36",
+            168.0,
+            147.72,
+            0.0,
+            3.02,
+            1.97,
+            -1.05,
+            0.0,
+            5.5,
+            -1.0,
+            6.5,
+            11.76,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-03T20:03:46+08:00",
+            "2025-01-07T14:39:58+08:00",
+            "piccolilotti",
+            "853194162074673",
+            "6777d222e4be50fa2154c7a4",
+            73.0,
+            61.08,
+            0.0,
+            1.31,
+            1.04,
+            -0.27,
+            0.0,
+            5.5,
+            -6.25,
+            11.75,
+            5.11,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-03T15:38:51+08:00",
+            "2025-01-07T14:39:58+08:00",
+            "piccolilotti",
+            "853166993820380",
+            "6777940cc3bb9891cc7420d5",
+            80.0,
+            63.98,
+            0.0,
+            1.2,
+            0.81,
+            -0.3899999999999999,
+            4.0,
+            9.5,
+            -11.0,
+            20.5,
+            5.32,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-03T08:53:03+08:00",
+            "2025-01-08T14:24:53+08:00",
+            "piccolilotti",
+            "853160116371834",
+            "677734ef3e6a556e1ee76b5c",
+            108.0,
+            93.0,
+            0.0,
+            1.94,
+            1.39,
+            -0.55,
+            0.0,
+            5.5,
+            -10.0,
+            15.5,
+            7.56,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-02T18:48:57+08:00",
+            "2025-01-07T14:39:58+08:00",
+            "piccolilotti",
+            "853168793530897",
+            "67766f193e6a552591dd5b44",
+            75.0,
+            51.96,
+            0.0,
+            1.13,
+            0.6,
+            -0.5299999999999999,
+            12.0,
+            17.5,
+            -19.0,
+            36.5,
+            4.41,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-02T18:34:35+08:00",
+            "2025-01-07T14:39:58+08:00",
+            "piccolilotti",
+            "853168745107356",
+            "67766bbb088fa96d329d8c6e",
+            64.0,
+            51.94,
+            0.0,
+            1.15,
+            0.92,
+            -0.22999999999999987,
+            1.0,
+            6.5,
+            -6.75,
+            13.25,
+            4.41,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-02T17:06:30+08:00",
+            "2025-01-07T14:39:58+08:00",
+            "piccolilotti",
+            "853164659424056",
+            "67765716c808729c39d1a9b9",
+            38.0,
+            36.67,
+            0.0,
+            0.57,
+            0.3,
+            -0.26999999999999996,
+            null,
+            -0.0,
+            null,
+            null,
+            0.76,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-02T16:03:38+08:00",
+            "2025-01-07T14:39:58+08:00",
+            "piccolilotti",
+            "853164148629478",
+            "6776485b3e6a5577e5d8f1f2",
+            65.0,
+            53.97,
+            0.0,
+            0.98,
+            0.66,
+            -0.31999999999999995,
+            0.0,
+            5.5,
+            -6.25,
+            11.75,
+            4.55,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-01T18:37:21+08:00",
+            "2025-01-03T12:15:44+08:00",
+            "piccolilotti",
+            "853152567244823",
+            "67751ae2c6f0ee290aa405a3",
+            50.0,
+            48.1,
+            0.0,
+            0.9,
+            0.78,
+            -0.12,
+            null,
+            -0.0,
+            null,
+            null,
+            1.0,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-01T18:36:33+08:00",
+            "2025-01-03T12:15:44+08:00",
+            "piccolilotti",
+            "853152559336526",
+            "67751ab1c3bb9828cb3fd19d",
+            161.0,
+            131.33,
+            0.0,
+            2.9,
+            1.9,
+            -1.0,
+            0.0,
+            15.5,
+            -19.0,
+            34.5,
+            11.27,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-01T15:48:27+08:00",
+            "2025-01-03T12:15:44+08:00",
+            "piccolilotti",
+            "853158554577264",
+            "6774f34bc8087223f9b3536d",
+            64.0,
+            51.94,
+            0.0,
+            1.15,
+            0.92,
+            -0.22999999999999987,
+            1.0,
+            6.5,
+            -1.0,
+            7.5,
+            4.41,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-01T15:14:02+08:00",
+            "2025-01-07T14:39:58+08:00",
+            "piccolilotti",
+            "853158107226382",
+            "6774eb3a3e6a55ebaabc1a51",
+            133.0,
+            116.19,
+            0.0,
+            2.0,
+            1.34,
+            -0.6599999999999999,
+            0.0,
+            5.5,
+            -1.0,
+            6.5,
+            9.31,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "2025-01-01T12:46:11+08:00",
+            "2025-01-03T12:15:44+08:00",
+            "piccolilotti",
+            "853154055815774",
+            "6774c893ca6e7be47737f3b2",
+            89.0,
+            75.93,
+            0.0,
+            1.34,
+            0.71,
+            -0.6300000000000001,
+            0.0,
+            5.5,
+            -5.25,
+            10.75,
+            6.23,
+            -0.0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "cols": [
+          {
+            "display_name": "transaction_time",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "transaction_time",
+              {
+                "base-type": "type/DateTime"
+              }
+            ],
+            "name": "transaction_time",
+            "base_type": "type/DateTime",
+            "effective_type": "type/DateTime"
+          },
+          {
+            "display_name": "payout_time",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "payout_time",
+              {
+                "base-type": "type/DateTime"
+              }
+            ],
+            "name": "payout_time",
+            "base_type": "type/DateTime",
+            "effective_type": "type/DateTime"
+          },
+          {
+            "display_name": "merchant_name",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "merchant_name",
+              {
+                "base-type": "type/Text"
+              }
+            ],
+            "name": "merchant_name",
+            "base_type": "type/Text",
+            "effective_type": "type/Text"
+          },
+          {
+            "display_name": "receiptnumber",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "receiptnumber",
+              {
+                "base-type": "type/Text"
+              }
+            ],
+            "name": "receiptnumber",
+            "base_type": "type/Text",
+            "effective_type": "type/Text"
+          },
+          {
+            "display_name": "transaction_id",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "transaction_id",
+              {
+                "base-type": "type/Text"
+              }
+            ],
+            "name": "transaction_id",
+            "base_type": "type/Text",
+            "effective_type": "type/Text"
+          },
+          {
+            "display_name": "gross_transaction_amount",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "gross_transaction_amount",
+              {
+                "base-type": "type/Decimal"
+              }
+            ],
+            "name": "gross_transaction_amount",
+            "base_type": "type/Decimal",
+            "effective_type": "type/Decimal"
+          },
+          {
+            "display_name": "net_payout_amount",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "net_payout_amount",
+              {
+                "base-type": "type/Decimal"
+              }
+            ],
+            "name": "net_payout_amount",
+            "base_type": "type/Decimal",
+            "effective_type": "type/Decimal"
+          },
+          {
+            "display_name": "refunded_amount",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "refunded_amount",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "refunded_amount",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          },
+          {
+            "display_name": "payment_gateway_fee",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "payment_gateway_fee",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "payment_gateway_fee",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          },
+          {
+            "display_name": "payment_gateway_cost",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "payment_gateway_cost",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "payment_gateway_cost",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          },
+          {
+            "display_name": "payment_gateway_profit_loss",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "payment_gateway_profit_loss",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "payment_gateway_profit_loss",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          },
+          {
+            "display_name": "customer_paid_delivery_fee",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "customer_paid_delivery_fee",
+              {
+                "base-type": "type/Decimal"
+              }
+            ],
+            "name": "customer_paid_delivery_fee",
+            "base_type": "type/Decimal",
+            "effective_type": "type/Decimal"
+          },
+          {
+            "display_name": "logistic_fee",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "logistic_fee",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "logistic_fee",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          },
+          {
+            "display_name": "logistic_cost",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "logistic_cost",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "logistic_cost",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          },
+          {
+            "display_name": "logistic_profit_loss",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "logistic_profit_loss",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "logistic_profit_loss",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          },
+          {
+            "display_name": "storehub_fee",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "storehub_fee",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "storehub_fee",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          },
+          {
+            "display_name": "storehub_funded_promo",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "storehub_funded_promo",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "storehub_funded_promo",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          },
+          {
+            "display_name": "voucher_cost_marketing",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "voucher_cost_marketing",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "voucher_cost_marketing",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          },
+          {
+            "display_name": "voucher_cost_people",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "voucher_cost_people",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "voucher_cost_people",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          },
+          {
+            "display_name": "voucher_cost_care",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "voucher_cost_care",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "voucher_cost_care",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          },
+          {
+            "display_name": "voucher_cost_product",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "voucher_cost_product",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "voucher_cost_product",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          },
+          {
+            "display_name": "voucher_cost_sold",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "voucher_cost_sold",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "voucher_cost_sold",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          },
+          {
+            "display_name": "voucher_cost_others",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "voucher_cost_others",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "voucher_cost_others",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          },
+          {
+            "display_name": "merchant_funded_voucher",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "merchant_funded_voucher",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "merchant_funded_voucher",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          }
+        ],
+        "native_form": {
+          "query": "WITH transactions AS (\n    SELECT\n        tr._id,\n        tr.receiptnumber,\n        tr.createdtime,\n        tr.business,\n        tr.total AS gross_transaction_amount\n    FROM\n        storehub_mongo.transactionrecords AS tr\n    WHERE\n        tr.business = 'piccolilotti'\n        AND tr.createdtime >= DATEADD(hour, -8, '2025-01-01')\n        AND tr.createdtime < DATEADD(hour, -8, '2025-02-01')\n        AND tr.channel IN (1, 3)\n        AND tr.status NOT IN ('created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n),\npayouts AS (\n    SELECT\n        pi.receiptnumber,\n        pi.amount,\n        pi.cause,\n        pi.paymentgatewayfee,\n        pi.logisticsfee,\n        pi.transactionfee,\n        pi.promotionamount,\n        pi.refundedamount,\n        bp.createdtime AS payout_time\n    FROM\n        storehub_mongo.payoutitems AS pi\n    LEFT JOIN\n        storehub_mongo.batchpayouts AS bp ON pi.batchpayoutid = bp._id\n),\nvouchers AS (\n    SELECT\n        tav.transactionrecords_foreignkey,\n        SUM(CASE WHEN tav.purchasechannel = 'cleverTapWebhook' OR (tav.purchasechannel = 'ist' AND LOWER(vc.remarks) LIKE 'marketing/%' AND vc.remarks NOT LIKE '%VBeepGiftVouchers/%') THEN tav.value ELSE 0 END) AS voucher_cost_marketing,\n        SUM(CASE WHEN tav.purchasechannel = 'ist' AND LOWER(vc.remarks) LIKE 'people/%' THEN tav.value ELSE 0 END) AS voucher_cost_people,\n        SUM(CASE WHEN tav.purchasechannel = 'ist' AND (LOWER(vc.remarks) LIKE 'care/%' OR vc.remarks = '') OR tav.purchasechannel = 'systemRefund' THEN tav.value ELSE 0 END) AS voucher_cost_care,\n        SUM(CASE WHEN tav.purchasechannel = 'ist' AND LOWER(vc.remarks) LIKE 'product/%' THEN tav.value ELSE 0 END) AS voucher_cost_product,\n        SUM(CASE WHEN tav.purchasechannel = 'ist' AND vc.remarks LIKE '%VBeepGiftVouchers/%' THEN tav.value ELSE 0 END) AS voucher_cost_sold,\n        SUM(CASE WHEN tav.purchasechannel = 'beep' THEN tav.value ELSE 0 END) AS merchant_funded_voucher,\n        SUM(CASE WHEN (tav.purchasechannel = 'ist' AND vc.remarks <> '' AND LOWER(vc.remarks) NOT LIKE 'product/%' AND LOWER(vc.remarks) NOT LIKE 'care/%' AND LOWER(vc.remarks) NOT LIKE 'marketing/%' AND LOWER(vc.remarks) NOT LIKE 'people/%' AND vc.remarks NOT LIKE '%VBeepGiftVouchers/%') OR tav.purchasechannel = '' THEN tav.value ELSE 0 END) AS voucher_cost_others\n    FROM\n        storehub_mongo.transactionrecords__appliedvoucher AS tav\n    LEFT JOIN\n        storehub_mongo.vouchers AS vc ON tav.voucherid = vc._id\n    GROUP BY\n        1\n)\nSELECT\n    DATEADD(hour, 8, txn.createdtime) AS transaction_time,\n    DATEADD(hour, 8, po.payout_time) AS payout_time,\n    txn.business AS merchant_name,\n    txn.receiptnumber,\n    txn._id AS transaction_id,\n    txn.gross_transaction_amount,\n    po.amount AS net_payout_amount,\n    po.refundedamount AS refunded_amount,\n    -po.paymentgatewayfee AS payment_gateway_fee,\n    CASE WHEN po.cause = 'sell' THEN -(ISNULL(gr.fee, 0) - ISNULL(pso.paymentgatewaycost, 0)) ELSE 0 END AS payment_gateway_cost,\n    (CASE WHEN po.cause = 'sell' THEN -(ISNULL(gr.fee, 0) - ISNULL(pso.paymentgatewaycost, 0)) ELSE 0 END) - (-po.paymentgatewayfee) AS payment_gateway_profit_loss,\n    trdi.shippingfee AS customer_paid_delivery_fee,\n    -po.logisticsfee AS logistic_fee,\n    CASE WHEN po.cause = 'sell' THEN -trdi.deliveryfee ELSE 0 END AS logistic_cost,\n    (-po.logisticsfee) - (CASE WHEN po.cause = 'sell' THEN -trdi.deliveryfee ELSE 0 END) AS logistic_profit_loss,\n    -po.transactionfee AS storehub_fee,\n    -po.promotionamount AS storehub_funded_promo,\n    -v.voucher_cost_marketing AS voucher_cost_marketing,\n    -v.voucher_cost_people AS voucher_cost_people,\n    -v.voucher_cost_care AS voucher_cost_care,\n    -v.voucher_cost_product AS voucher_cost_product,\n    -v.voucher_cost_sold AS voucher_cost_sold,\n    -v.voucher_cost_others AS voucher_cost_others,\n    -v.merchant_funded_voucher AS merchant_funded_voucher\nFROM\n    transactions AS txn\nLEFT JOIN\n    payouts AS po ON txn.receiptnumber = po.receiptnumber\nLEFT JOIN\n    vouchers AS v ON txn._id = v.transactionrecords_foreignkey\nLEFT JOIN\n    storehub_mongo.transactionrecords__deliveryinformation AS trdi ON txn._id = trdi.transactionrecords_foreignkey\nLEFT JOIN\n    (SELECT receiptnumber, fee FROM storehub_mongo.gatewayrecords WHERE transactiontype = 'payment' AND reconstatus = 'passed') AS gr ON po.receiptnumber = gr.receiptnumber\nLEFT JOIN\n    storehub_mongo.paymentsettlements__orders AS pso ON txn.receiptnumber = pso.receiptnumber\nORDER BY\n    transaction_time DESC,\n    txn.receiptnumber,\n    po.cause DESC;"
+        },
+        "results_timezone": "Asia/Kuala_Lumpur",
+        "requested_timezone": "Asia/Kuala_Lumpur",
+        "results_metadata": {
+          "columns": [
+            {
+              "display_name": "transaction_time",
+              "field_ref": [
+                "field",
+                "transaction_time",
+                {
+                  "base-type": "type/DateTime"
+                }
+              ],
+              "name": "transaction_time",
+              "base_type": "type/DateTime",
+              "effective_type": "type/DateTime",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 82,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/DateTime": {
+                    "earliest": "2025-01-01T12:46:11+08:00",
+                    "latest": "2025-01-31T23:58:30+08:00"
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "payout_time",
+              "field_ref": [
+                "field",
+                "payout_time",
+                {
+                  "base-type": "type/DateTime"
+                }
+              ],
+              "name": "payout_time",
+              "base_type": "type/DateTime",
+              "effective_type": "type/DateTime",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 15,
+                  "nil%": 0.01219512195121951
+                },
+                "type": {
+                  "type/DateTime": {
+                    "earliest": "2025-01-03T12:15:44+08:00",
+                    "latest": "2025-02-07T14:23:47+08:00"
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "merchant_name",
+              "field_ref": [
+                "field",
+                "merchant_name",
+                {
+                  "base-type": "type/Text"
+                }
+              ],
+              "name": "merchant_name",
+              "base_type": "type/Text",
+              "effective_type": "type/Text",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 1,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Text": {
+                    "percent-json": 0.0,
+                    "percent-url": 0.0,
+                    "percent-email": 0.0,
+                    "percent-state": 0.0,
+                    "average-length": 12.0
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "receiptnumber",
+              "field_ref": [
+                "field",
+                "receiptnumber",
+                {
+                  "base-type": "type/Text"
+                }
+              ],
+              "name": "receiptnumber",
+              "base_type": "type/Text",
+              "effective_type": "type/Text",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 82,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Text": {
+                    "percent-json": 0.0,
+                    "percent-url": 0.0,
+                    "percent-email": 0.0,
+                    "percent-state": 0.0,
+                    "average-length": 15.0
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "transaction_id",
+              "field_ref": [
+                "field",
+                "transaction_id",
+                {
+                  "base-type": "type/Text"
+                }
+              ],
+              "name": "transaction_id",
+              "base_type": "type/Text",
+              "effective_type": "type/Text",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 82,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Text": {
+                    "percent-json": 0.0,
+                    "percent-url": 0.0,
+                    "percent-email": 0.0,
+                    "percent-state": 0.0,
+                    "average-length": 24.0
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "gross_transaction_amount",
+              "field_ref": [
+                "field",
+                "gross_transaction_amount",
+                {
+                  "base-type": "type/Decimal"
+                }
+              ],
+              "name": "gross_transaction_amount",
+              "base_type": "type/Decimal",
+              "effective_type": "type/Decimal",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 50,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 38.0,
+                    "q1": 68.23606797749979,
+                    "q3": 112.0,
+                    "max": 179.0,
+                    "sd": 31.95586811174229,
+                    "avg": 93.6951219512195
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "net_payout_amount",
+              "field_ref": [
+                "field",
+                "net_payout_amount",
+                {
+                  "base-type": "type/Decimal"
+                }
+              ],
+              "name": "net_payout_amount",
+              "base_type": "type/Decimal",
+              "effective_type": "type/Decimal",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 65,
+                  "nil%": 0.01219512195121951
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 36.67,
+                    "q1": 54.68391164991562,
+                    "q3": 102.8125,
+                    "max": 152.75,
+                    "sd": 29.787278480756235,
+                    "avg": 79.2979012345679
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "refunded_amount",
+              "field_ref": [
+                "field",
+                "refunded_amount",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "refunded_amount",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 2,
+                  "nil%": 0.01219512195121951
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 0.0,
+                    "q1": 0.0,
+                    "q3": 0.0,
+                    "max": 0.0,
+                    "sd": 0.0,
+                    "avg": 0.0
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "payment_gateway_fee",
+              "field_ref": [
+                "field",
+                "payment_gateway_fee",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "payment_gateway_fee",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 54,
+                  "nil%": 0.01219512195121951
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 0.57,
+                    "q1": 1.157752551286084,
+                    "q3": 1.941715728752538,
+                    "max": 3.22,
+                    "sd": 0.5650489162698905,
+                    "avg": 1.6018518518518519
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "payment_gateway_cost",
+              "field_ref": [
+                "field",
+                "payment_gateway_cost",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "payment_gateway_cost",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": "type/Cost",
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 56,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 0.0,
+                    "q1": 0.9,
+                    "q3": 1.31,
+                    "max": 4.35,
+                    "sd": 0.5714744238927102,
+                    "avg": 1.1514634146341463
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "payment_gateway_profit_loss",
+              "field_ref": [
+                "field",
+                "payment_gateway_profit_loss",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "payment_gateway_profit_loss",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 56,
+                  "nil%": 0.01219512195121951
+                },
+                "type": {
+                  "type/Number": {
+                    "min": -1.1300000000000003,
+                    "q1": -0.6367423461417477,
+                    "q3": -0.2632576538582523,
+                    "max": 1.9599999999999995,
+                    "sd": 0.4411648441944195,
+                    "avg": -0.4361728395061728
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "customer_paid_delivery_fee",
+              "field_ref": [
+                "field",
+                "customer_paid_delivery_fee",
+                {
+                  "base-type": "type/Decimal"
+                }
+              ],
+              "name": "customer_paid_delivery_fee",
+              "base_type": "type/Decimal",
+              "effective_type": "type/Decimal",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 12,
+                  "nil%": 0.1219512195121951
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 0.0,
+                    "q1": 0.06403781568934856,
+                    "q3": 3.7207592200561264,
+                    "max": 12.0,
+                    "sd": 3.06617162773127,
+                    "avg": 2.25
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "logistic_fee",
+              "field_ref": [
+                "field",
+                "logistic_fee",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "logistic_fee",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 14,
+                  "nil%": 0.01219512195121951
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 0.0,
+                    "q1": 4.651037598689886,
+                    "q3": 9.18046042171637,
+                    "max": 17.5,
+                    "sd": 3.993349023032308,
+                    "avg": 7.006172839506172
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "logistic_cost",
+              "field_ref": [
+                "field",
+                "logistic_cost",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "logistic_cost",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": "type/Cost",
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 19,
+                  "nil%": 0.1219512195121951
+                },
+                "type": {
+                  "type/Number": {
+                    "min": -23.0,
+                    "q1": -8.168861169915811,
+                    "q3": -4.1645636297938315,
+                    "max": 0.0,
+                    "sd": 5.200437677198795,
+                    "avg": -6.909722222222222
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "logistic_profit_loss",
+              "field_ref": [
+                "field",
+                "logistic_profit_loss",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "logistic_profit_loss",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 29,
+                  "nil%": 0.1341463414634146
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 6.5,
+                    "q1": 11.051314425488659,
+                    "q3": 17.3125,
+                    "max": 39.5,
+                    "sd": 7.842193570679061,
+                    "avg": 15.0
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "storehub_fee",
+              "field_ref": [
+                "field",
+                "storehub_fee",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "storehub_fee",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 34,
+                  "nil%": 0.01219512195121951
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 0.76,
+                    "q1": 4.459,
+                    "q3": 7.238772450519571,
+                    "max": 12.53,
+                    "sd": 2.451713503845478,
+                    "avg": 5.773086419753087
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "storehub_funded_promo",
+              "field_ref": [
+                "field",
+                "storehub_funded_promo",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "storehub_funded_promo",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 2,
+                  "nil%": 0.01219512195121951
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 0.0,
+                    "q1": 0.0,
+                    "q3": 0.0,
+                    "max": 0.0,
+                    "sd": 0.0,
+                    "avg": 0.0
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "voucher_cost_marketing",
+              "field_ref": [
+                "field",
+                "voucher_cost_marketing",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "voucher_cost_marketing",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": "type/Cost",
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 1,
+                  "nil%": 1.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": null,
+                    "q1": null,
+                    "q3": null,
+                    "max": null,
+                    "sd": null,
+                    "avg": null
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "voucher_cost_people",
+              "field_ref": [
+                "field",
+                "voucher_cost_people",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "voucher_cost_people",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": "type/Cost",
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 1,
+                  "nil%": 1.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": null,
+                    "q1": null,
+                    "q3": null,
+                    "max": null,
+                    "sd": null,
+                    "avg": null
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "voucher_cost_care",
+              "field_ref": [
+                "field",
+                "voucher_cost_care",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "voucher_cost_care",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": "type/Cost",
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 1,
+                  "nil%": 1.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": null,
+                    "q1": null,
+                    "q3": null,
+                    "max": null,
+                    "sd": null,
+                    "avg": null
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "voucher_cost_product",
+              "field_ref": [
+                "field",
+                "voucher_cost_product",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "voucher_cost_product",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": "type/Cost",
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 1,
+                  "nil%": 1.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": null,
+                    "q1": null,
+                    "q3": null,
+                    "max": null,
+                    "sd": null,
+                    "avg": null
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "voucher_cost_sold",
+              "field_ref": [
+                "field",
+                "voucher_cost_sold",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "voucher_cost_sold",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": "type/Cost",
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 1,
+                  "nil%": 1.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": null,
+                    "q1": null,
+                    "q3": null,
+                    "max": null,
+                    "sd": null,
+                    "avg": null
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "voucher_cost_others",
+              "field_ref": [
+                "field",
+                "voucher_cost_others",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "voucher_cost_others",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": "type/Cost",
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 1,
+                  "nil%": 1.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": null,
+                    "q1": null,
+                    "q3": null,
+                    "max": null,
+                    "sd": null,
+                    "avg": null
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "merchant_funded_voucher",
+              "field_ref": [
+                "field",
+                "merchant_funded_voucher",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "merchant_funded_voucher",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 1,
+                  "nil%": 1.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": null,
+                    "q1": null,
+                    "q3": null,
+                    "max": null,
+                    "sd": null,
+                    "avg": null
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "insights": null
+      },
+      "cached": false,
+      "database_id": 2,
+      "started_at": "2025-07-30T15:56:39.261472Z",
+      "json_query": {
+        "database": 2,
+        "type": "native",
+        "native": {
+          "query": "WITH transactions AS (\n    SELECT\n        tr._id,\n        tr.receiptnumber,\n        tr.createdtime,\n        tr.business,\n        tr.total AS gross_transaction_amount\n    FROM\n        storehub_mongo.transactionrecords AS tr\n    WHERE\n        tr.business = 'piccolilotti'\n        AND tr.createdtime >= DATEADD(hour, -8, '2025-01-01')\n        AND tr.createdtime < DATEADD(hour, -8, '2025-02-01')\n        AND tr.channel IN (1, 3)\n        AND tr.status NOT IN ('created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n),\npayouts AS (\n    SELECT\n        pi.receiptnumber,\n        pi.amount,\n        pi.cause,\n        pi.paymentgatewayfee,\n        pi.logisticsfee,\n        pi.transactionfee,\n        pi.promotionamount,\n        pi.refundedamount,\n        bp.createdtime AS payout_time\n    FROM\n        storehub_mongo.payoutitems AS pi\n    LEFT JOIN\n        storehub_mongo.batchpayouts AS bp ON pi.batchpayoutid = bp._id\n),\nvouchers AS (\n    SELECT\n        tav.transactionrecords_foreignkey,\n        SUM(CASE WHEN tav.purchasechannel = 'cleverTapWebhook' OR (tav.purchasechannel = 'ist' AND LOWER(vc.remarks) LIKE 'marketing/%' AND vc.remarks NOT LIKE '%VBeepGiftVouchers/%') THEN tav.value ELSE 0 END) AS voucher_cost_marketing,\n        SUM(CASE WHEN tav.purchasechannel = 'ist' AND LOWER(vc.remarks) LIKE 'people/%' THEN tav.value ELSE 0 END) AS voucher_cost_people,\n        SUM(CASE WHEN tav.purchasechannel = 'ist' AND (LOWER(vc.remarks) LIKE 'care/%' OR vc.remarks = '') OR tav.purchasechannel = 'systemRefund' THEN tav.value ELSE 0 END) AS voucher_cost_care,\n        SUM(CASE WHEN tav.purchasechannel = 'ist' AND LOWER(vc.remarks) LIKE 'product/%' THEN tav.value ELSE 0 END) AS voucher_cost_product,\n        SUM(CASE WHEN tav.purchasechannel = 'ist' AND vc.remarks LIKE '%VBeepGiftVouchers/%' THEN tav.value ELSE 0 END) AS voucher_cost_sold,\n        SUM(CASE WHEN tav.purchasechannel = 'beep' THEN tav.value ELSE 0 END) AS merchant_funded_voucher,\n        SUM(CASE WHEN (tav.purchasechannel = 'ist' AND vc.remarks <> '' AND LOWER(vc.remarks) NOT LIKE 'product/%' AND LOWER(vc.remarks) NOT LIKE 'care/%' AND LOWER(vc.remarks) NOT LIKE 'marketing/%' AND LOWER(vc.remarks) NOT LIKE 'people/%' AND vc.remarks NOT LIKE '%VBeepGiftVouchers/%') OR tav.purchasechannel = '' THEN tav.value ELSE 0 END) AS voucher_cost_others\n    FROM\n        storehub_mongo.transactionrecords__appliedvoucher AS tav\n    LEFT JOIN\n        storehub_mongo.vouchers AS vc ON tav.voucherid = vc._id\n    GROUP BY\n        1\n)\nSELECT\n    DATEADD(hour, 8, txn.createdtime) AS transaction_time,\n    DATEADD(hour, 8, po.payout_time) AS payout_time,\n    txn.business AS merchant_name,\n    txn.receiptnumber,\n    txn._id AS transaction_id,\n    txn.gross_transaction_amount,\n    po.amount AS net_payout_amount,\n    po.refundedamount AS refunded_amount,\n    -po.paymentgatewayfee AS payment_gateway_fee,\n    CASE WHEN po.cause = 'sell' THEN -(ISNULL(gr.fee, 0) - ISNULL(pso.paymentgatewaycost, 0)) ELSE 0 END AS payment_gateway_cost,\n    (CASE WHEN po.cause = 'sell' THEN -(ISNULL(gr.fee, 0) - ISNULL(pso.paymentgatewaycost, 0)) ELSE 0 END) - (-po.paymentgatewayfee) AS payment_gateway_profit_loss,\n    trdi.shippingfee AS customer_paid_delivery_fee,\n    -po.logisticsfee AS logistic_fee,\n    CASE WHEN po.cause = 'sell' THEN -trdi.deliveryfee ELSE 0 END AS logistic_cost,\n    (-po.logisticsfee) - (CASE WHEN po.cause = 'sell' THEN -trdi.deliveryfee ELSE 0 END) AS logistic_profit_loss,\n    -po.transactionfee AS storehub_fee,\n    -po.promotionamount AS storehub_funded_promo,\n    -v.voucher_cost_marketing AS voucher_cost_marketing,\n    -v.voucher_cost_people AS voucher_cost_people,\n    -v.voucher_cost_care AS voucher_cost_care,\n    -v.voucher_cost_product AS voucher_cost_product,\n    -v.voucher_cost_sold AS voucher_cost_sold,\n    -v.voucher_cost_others AS voucher_cost_others,\n    -v.merchant_funded_voucher AS merchant_funded_voucher\nFROM\n    transactions AS txn\nLEFT JOIN\n    payouts AS po ON txn.receiptnumber = po.receiptnumber\nLEFT JOIN\n    vouchers AS v ON txn._id = v.transactionrecords_foreignkey\nLEFT JOIN\n    storehub_mongo.transactionrecords__deliveryinformation AS trdi ON txn._id = trdi.transactionrecords_foreignkey\nLEFT JOIN\n    (SELECT receiptnumber, fee FROM storehub_mongo.gatewayrecords WHERE transactiontype = 'payment' AND reconstatus = 'passed') AS gr ON po.receiptnumber = gr.receiptnumber\nLEFT JOIN\n    storehub_mongo.paymentsettlements__orders AS pso ON txn.receiptnumber = pso.receiptnumber\nORDER BY\n    transaction_time DESC,\n    txn.receiptnumber,\n    po.cause DESC;"
+        },
+        "middleware": {
+          "js-int-to-string?": true,
+          "add-default-userland-constraints?": true
+        }
+      },
+      "average_execution_time": null,
+      "status": "completed",
+      "context": "ad-hoc",
+      "row_count": 82,
+      "running_time": 22734
+    },
+    "row_count": 82,
+    "query": "WITH transactions AS (\n    SELECT\n        tr._id,\n        tr.receiptnumber,\n        tr.createdtime,\n        tr.business,\n        tr.total AS gross_transaction_amount\n    FROM\n        storehub_mongo.transactionrecords AS tr\n    WHERE\n        tr.business = 'piccolilotti'\n        AND tr.createdtime >= DATEADD(hour, -8, '2025-01-01')\n        AND tr.createdtime < DATEADD(hour, -8, '2025-02-01')\n        AND tr.channel IN (1, 3)\n        AND tr.status NOT IN ('created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n),\npayouts AS (\n    SELECT\n        pi.receiptnumber,\n        pi.amount,\n        pi.cause,\n        pi.paymentgatewayfee,\n        pi.logisticsfee,\n        pi.transactionfee,\n        pi.promotionamount,\n        pi.refundedamount,\n        bp.createdtime AS payout_time\n    FROM\n        storehub_mongo.payoutitems AS pi\n    LEFT JOIN\n        storehub_mongo.batchpayouts AS bp ON pi.batchpayoutid = bp._id\n),\nvouchers AS (\n    SELECT\n        tav.transactionrecords_foreignkey,\n        SUM(CASE WHEN tav.purchasechannel = 'cleverTapWebhook' OR (tav.purchasechannel = 'ist' AND LOWER(vc.remarks) LIKE 'marketing/%' AND vc.remarks NOT LIKE '%VBeepGiftVouchers/%') THEN tav.value ELSE 0 END) AS voucher_cost_marketing,\n        SUM(CASE WHEN tav.purchasechannel = 'ist' AND LOWER(vc.remarks) LIKE 'people/%' THEN tav.value ELSE 0 END) AS voucher_cost_people,\n        SUM(CASE WHEN tav.purchasechannel = 'ist' AND (LOWER(vc.remarks) LIKE 'care/%' OR vc.remarks = '') OR tav.purchasechannel = 'systemRefund' THEN tav.value ELSE 0 END) AS voucher_cost_care,\n        SUM(CASE WHEN tav.purchasechannel = 'ist' AND LOWER(vc.remarks) LIKE 'product/%' THEN tav.value ELSE 0 END) AS voucher_cost_product,\n        SUM(CASE WHEN tav.purchasechannel = 'ist' AND vc.remarks LIKE '%VBeepGiftVouchers/%' THEN tav.value ELSE 0 END) AS voucher_cost_sold,\n        SUM(CASE WHEN tav.purchasechannel = 'beep' THEN tav.value ELSE 0 END) AS merchant_funded_voucher,\n        SUM(CASE WHEN (tav.purchasechannel = 'ist' AND vc.remarks <> '' AND LOWER(vc.remarks) NOT LIKE 'product/%' AND LOWER(vc.remarks) NOT LIKE 'care/%' AND LOWER(vc.remarks) NOT LIKE 'marketing/%' AND LOWER(vc.remarks) NOT LIKE 'people/%' AND vc.remarks NOT LIKE '%VBeepGiftVouchers/%') OR tav.purchasechannel = '' THEN tav.value ELSE 0 END) AS voucher_cost_others\n    FROM\n        storehub_mongo.transactionrecords__appliedvoucher AS tav\n    LEFT JOIN\n        storehub_mongo.vouchers AS vc ON tav.voucherid = vc._id\n    GROUP BY\n        1\n)\nSELECT\n    DATEADD(hour, 8, txn.createdtime) AS transaction_time,\n    DATEADD(hour, 8, po.payout_time) AS payout_time,\n    txn.business AS merchant_name,\n    txn.receiptnumber,\n    txn._id AS transaction_id,\n    txn.gross_transaction_amount,\n    po.amount AS net_payout_amount,\n    po.refundedamount AS refunded_amount,\n    -po.paymentgatewayfee AS payment_gateway_fee,\n    CASE WHEN po.cause = 'sell' THEN -(ISNULL(gr.fee, 0) - ISNULL(pso.paymentgatewaycost, 0)) ELSE 0 END AS payment_gateway_cost,\n    (CASE WHEN po.cause = 'sell' THEN -(ISNULL(gr.fee, 0) - ISNULL(pso.paymentgatewaycost, 0)) ELSE 0 END) - (-po.paymentgatewayfee) AS payment_gateway_profit_loss,\n    trdi.shippingfee AS customer_paid_delivery_fee,\n    -po.logisticsfee AS logistic_fee,\n    CASE WHEN po.cause = 'sell' THEN -trdi.deliveryfee ELSE 0 END AS logistic_cost,\n    (-po.logisticsfee) - (CASE WHEN po.cause = 'sell' THEN -trdi.deliveryfee ELSE 0 END) AS logistic_profit_loss,\n    -po.transactionfee AS storehub_fee,\n    -po.promotionamount AS storehub_funded_promo,\n    -v.voucher_cost_marketing AS voucher_cost_marketing,\n    -v.voucher_cost_people AS voucher_cost_people,\n    -v.voucher_cost_care AS voucher_cost_care,\n    -v.voucher_cost_product AS voucher_cost_product,\n    -v.voucher_cost_sold AS voucher_cost_sold,\n    -v.voucher_cost_others AS voucher_cost_others,\n    -v.merchant_funded_voucher AS merchant_funded_voucher\nFROM\n    transactions AS txn\nLEFT JOIN\n    payouts AS po ON txn.receiptnumber = po.receiptnumber\nLEFT JOIN\n    vouchers AS v ON txn._id = v.transactionrecords_foreignkey\nLEFT JOIN\n    storehub_mongo.transactionrecords__deliveryinformation AS trdi ON txn._id = trdi.transactionrecords_foreignkey\nLEFT JOIN\n    (SELECT receiptnumber, fee FROM storehub_mongo.gatewayrecords WHERE transactiontype = 'payment' AND reconstatus = 'passed') AS gr ON po.receiptnumber = gr.receiptnumber\nLEFT JOIN\n    storehub_mongo.paymentsettlements__orders AS pso ON txn.receiptnumber = pso.receiptnumber\nORDER BY\n    transaction_time DESC,\n    txn.receiptnumber,\n    po.cause DESC;"
+  }
+}

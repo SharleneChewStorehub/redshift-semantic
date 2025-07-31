@@ -1,0 +1,97 @@
+{
+  "file_name": "04_beep_ecomm_paymentgatewayrevenue.sql",
+  "timestamp": "/Users/sharlenechew/redshift-semantic",
+  "business_question": "What was our total revenue from payment gateway fees for all online transactions in Malaysia for June 2025?",
+  "golden_sql": "with txn as (\nselect distinct \n    tr.receiptnumber,\n    tr.createdtime,\n    tr.business,\n    b.country,\n    tr._id,\n    tr.status,\n    tr.channel,\n    tr.shippingtype,\n    tr.isdisbursed,\n    tr.total\n    \nfrom storehub_mongo.transactionrecords tr\n\nleft join storehub_mongo.businesses b\n    on b.name = tr.business\n    \nwhere (tr.channel = 1 or tr.channel = 3)\n    and tr.business != 'merchandise'\n    and tr.paymentmethod = 'Online'\n    and CHARINDEX('internal', b.planid) = 0 \n    and CHARINDEX('@storehub.com', b.email) = 0\n    and b.country = 'MY'\n    and tr.status not in ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n    and tr.total < 10000000\n    and tr.createdtime >= dateadd(hour,-8,'2025-06-01') and tr.createdtime < dateadd(hour,-8,'2025-07-01')\n),\n\npo as (\nselect \n    pi.*,\n    bp.createdtime as bptime\n\nfrom storehub_mongo.payoutitems pi\n\nleft join storehub_mongo.batchpayouts bp\n    on bp._id = pi.batchpayoutid\n)\n\n\nselect \n    t.country,\n    date_trunc('month', t.\"Transaction time\") as \"Month\",\n    count(distinct t.\"transaction id\") as total_txn,\n    sum(t.\"Transaction Amount\") as total_txn_amt,\n    sum(t.\"Payment Gateway Profit\") as total_pg_revenue\nfrom (\nselect distinct \n    dateadd(hour,8,txn.createdtime) as \"Transaction time\",\n    dateadd(hour,8,po.bptime) as \"Payout time\",\n    txn.country,\n    txn.business, \n    txn.receiptnumber as \"receipt number\",\n    txn._id as \"transaction id\",\n    txn.status,\n    case \n        when txn.channel = 1 then 'Ecomm'\n        when txn.channel = 3 then 'Beep'\n    end as \"channel\",\n    txn.shippingtype,\n    txn.isdisbursed,\n    txn.total as \"Transaction Amount\",\n    --trpm.paymentprovider,\n    --trpm.paymentgateway,\n    --gr.paymentgateway,\n    po.paymentgateway as \"payment gateway\",\n    po.cause as \"Payout reason\",\n    po.amount as \"Payout amount\",\n    --\"Payout amount - Sell\" + \"Payout amount - Adjustment\" as \"Total Payout amount\",\n    (case when po.cause = 'sell' then isnull(gr.fee,0) - isnull(pso.paymentgatewaycost,0) else 0 end) as \"Payment Gateway Cost\",\n    isnull(po.paymentgatewayfee,0) as \"Payment Gateway Fee\",\n    -(\"Payment Gateway Fee\" - \"Payment Gateway Cost\") as \"Payment Gateway Profit\",\n    -(po.transactionfee) as \"Storehub Fee (Transaction Fee)\"\n    --count(distinct pi.receiptnumber) as \"# of txn\",\n    --sum(case when pi.cause = 'adjustment' then pi.amount else 0 end) as \"Adjustment Amount\",\n    --(case when po.cause = 'sell' then isnull(po.refundedamount,0) else 0 end) as \"Refunded Amount\"\n\nfrom txn\n    \nleft join po \n    on po.receiptnumber = txn.receiptnumber\n\nleft join (\n    select * \n    from storehub_mongo.gatewayrecords gr\n    where gr.transactiontype = 'payment' \n        and gr.reconstatus = 'passed'\n    ) gr \n    on gr.receiptnumber = po.receiptnumber\n\nleft join storehub_mongo.paymentsettlements__orders pso \n    on pso.receiptnumber = txn.receiptnumber\n    --and (pi.cause = 'sell' or pi.cause = 'cancel')\n\n--group by 1,2,3,4,5,6,7,8,9,10,11,12,13\norder by \"Transaction time\" desc,  \"receipt number\" ASC, \"Payout reason\" DESC\n) t\n\ngroup by 1,2\norder by 1 ASC, 2 ASC",
+  "ai_generated_sql": "SELECT\n  SUM(-(ISNULL(pi.paymentgatewayfee, 0) - (CASE WHEN pi.cause = 'sell' THEN ISNULL(gr.fee, 0) - ISNULL(pso.paymentgatewaycost, 0) ELSE 0 END))) AS total_payment_gateway_revenue\nFROM\n  storehub_mongo.transactionrecords AS tr\n  INNER JOIN storehub_mongo.businesses AS b ON b.name = tr.business\n  LEFT JOIN storehub_mongo.payoutitems AS pi ON pi.receiptnumber = tr.receiptnumber\n  LEFT JOIN storehub_mongo.gatewayrecords AS gr ON gr.receiptnumber = tr.receiptnumber AND gr.transactiontype = 'payment' AND gr.reconstatus = 'passed'\n  LEFT JOIN storehub_mongo.paymentsettlements__orders AS pso ON pso.receiptnumber = tr.receiptnumber\nWHERE\n  tr.createdtime >= DATEADD(hour, -8, '2025-06-01')\n  AND tr.createdtime < DATEADD(hour, -8, '2025-07-01')\n  AND b.country = 'MY'\n  AND tr.paymentmethod = 'Online'\n  AND tr.status NOT IN ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n  AND tr.channel IN (1, 3)\n  AND CHARINDEX('internal', b.planid) = 0\n  AND CHARINDEX('@storehub.com', b.email) = 0;",
+  "api_result": {
+    "success": true,
+    "status_code": 202,
+    "data": {
+      "data": {
+        "rows": [
+          [
+            50128.61000000015
+          ]
+        ],
+        "cols": [
+          {
+            "display_name": "total_payment_gateway_revenue",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "total_payment_gateway_revenue",
+              {
+                "base-type": "type/Float"
+              }
+            ],
+            "name": "total_payment_gateway_revenue",
+            "base_type": "type/Float",
+            "effective_type": "type/Float"
+          }
+        ],
+        "native_form": {
+          "query": "SELECT\n  SUM(-(ISNULL(pi.paymentgatewayfee, 0) - (CASE WHEN pi.cause = 'sell' THEN ISNULL(gr.fee, 0) - ISNULL(pso.paymentgatewaycost, 0) ELSE 0 END))) AS total_payment_gateway_revenue\nFROM\n  storehub_mongo.transactionrecords AS tr\n  INNER JOIN storehub_mongo.businesses AS b ON b.name = tr.business\n  LEFT JOIN storehub_mongo.payoutitems AS pi ON pi.receiptnumber = tr.receiptnumber\n  LEFT JOIN storehub_mongo.gatewayrecords AS gr ON gr.receiptnumber = tr.receiptnumber AND gr.transactiontype = 'payment' AND gr.reconstatus = 'passed'\n  LEFT JOIN storehub_mongo.paymentsettlements__orders AS pso ON pso.receiptnumber = tr.receiptnumber\nWHERE\n  tr.createdtime >= DATEADD(hour, -8, '2025-06-01')\n  AND tr.createdtime < DATEADD(hour, -8, '2025-07-01')\n  AND b.country = 'MY'\n  AND tr.paymentmethod = 'Online'\n  AND tr.status NOT IN ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n  AND tr.channel IN (1, 3)\n  AND CHARINDEX('internal', b.planid) = 0\n  AND CHARINDEX('@storehub.com', b.email) = 0;"
+        },
+        "results_timezone": "Asia/Kuala_Lumpur",
+        "requested_timezone": "Asia/Kuala_Lumpur",
+        "results_metadata": {
+          "columns": [
+            {
+              "display_name": "total_payment_gateway_revenue",
+              "field_ref": [
+                "field",
+                "total_payment_gateway_revenue",
+                {
+                  "base-type": "type/Float"
+                }
+              ],
+              "name": "total_payment_gateway_revenue",
+              "base_type": "type/Float",
+              "effective_type": "type/Float",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 1,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 50128.61000000015,
+                    "q1": 50128.61000000015,
+                    "q3": 50128.61000000015,
+                    "max": 50128.61000000015,
+                    "sd": null,
+                    "avg": 50128.61000000015
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "insights": null
+      },
+      "cached": false,
+      "database_id": 2,
+      "started_at": "2025-07-30T15:48:49.345803Z",
+      "json_query": {
+        "database": 2,
+        "type": "native",
+        "native": {
+          "query": "SELECT\n  SUM(-(ISNULL(pi.paymentgatewayfee, 0) - (CASE WHEN pi.cause = 'sell' THEN ISNULL(gr.fee, 0) - ISNULL(pso.paymentgatewaycost, 0) ELSE 0 END))) AS total_payment_gateway_revenue\nFROM\n  storehub_mongo.transactionrecords AS tr\n  INNER JOIN storehub_mongo.businesses AS b ON b.name = tr.business\n  LEFT JOIN storehub_mongo.payoutitems AS pi ON pi.receiptnumber = tr.receiptnumber\n  LEFT JOIN storehub_mongo.gatewayrecords AS gr ON gr.receiptnumber = tr.receiptnumber AND gr.transactiontype = 'payment' AND gr.reconstatus = 'passed'\n  LEFT JOIN storehub_mongo.paymentsettlements__orders AS pso ON pso.receiptnumber = tr.receiptnumber\nWHERE\n  tr.createdtime >= DATEADD(hour, -8, '2025-06-01')\n  AND tr.createdtime < DATEADD(hour, -8, '2025-07-01')\n  AND b.country = 'MY'\n  AND tr.paymentmethod = 'Online'\n  AND tr.status NOT IN ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n  AND tr.channel IN (1, 3)\n  AND CHARINDEX('internal', b.planid) = 0\n  AND CHARINDEX('@storehub.com', b.email) = 0;"
+        },
+        "middleware": {
+          "js-int-to-string?": true,
+          "add-default-userland-constraints?": true
+        }
+      },
+      "average_execution_time": null,
+      "status": "completed",
+      "context": "ad-hoc",
+      "row_count": 1,
+      "running_time": 12162
+    },
+    "row_count": 1,
+    "query": "SELECT\n  SUM(-(ISNULL(pi.paymentgatewayfee, 0) - (CASE WHEN pi.cause = 'sell' THEN ISNULL(gr.fee, 0) - ISNULL(pso.paymentgatewaycost, 0) ELSE 0 END))) AS total_payment_gateway_revenue\nFROM\n  storehub_mongo.transactionrecords AS tr\n  INNER JOIN storehub_mongo.businesses AS b ON b.name = tr.business\n  LEFT JOIN storehub_mongo.payoutitems AS pi ON pi.receiptnumber = tr.receiptnumber\n  LEFT JOIN storehub_mongo.gatewayrecords AS gr ON gr.receiptnumber = tr.receiptnumber AND gr.transactiontype = 'payment' AND gr.reconstatus = 'passed'\n  LEFT JOIN storehub_mongo.paymentsettlements__orders AS pso ON pso.receiptnumber = tr.receiptnumber\nWHERE\n  tr.createdtime >= DATEADD(hour, -8, '2025-06-01')\n  AND tr.createdtime < DATEADD(hour, -8, '2025-07-01')\n  AND b.country = 'MY'\n  AND tr.paymentmethod = 'Online'\n  AND tr.status NOT IN ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n  AND tr.channel IN (1, 3)\n  AND CHARINDEX('internal', b.planid) = 0\n  AND CHARINDEX('@storehub.com', b.email) = 0;"
+  }
+}

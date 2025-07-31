@@ -1,0 +1,201 @@
+{
+  "file_name": "11_sales_by_paymentmethod.sql",
+  "timestamp": "/Users/sharlenechew/redshift-semantic",
+  "business_question": "I need a sales report for 'signaturebeefnoodles' for the first half of 2025, broken down by each payment method. Can you show me the final Net Sales for each payment type, making sure to correctly account for both returns and preorder deposits?",
+  "golden_sql": "with base as (\nSELECT\n    dateadd(hour,8,tr.createdtime) as txn_createdtime,\n    tr.storeid AS \"Store ID\",\n    bs.name AS \"Store Name\",\n    tr._id,\n    tr.transactiontype,\n    CASE \n        WHEN bpo.name <> '' THEN bpo.name\n        ELSE trp.paymentmethod \n    END AS \"Payment Method\",\n    /*CASE \n        WHEN trp.paymentmethod = '' or trp.paymentmethod is null THEN tr.paymentmethod \n        ELSE trp.paymentmethod \n    END AS \"Payments paymentmethod\",*/\n    CASE \n        WHEN trp.paymentmethod = '' or trp.paymentmethod is null THEN tr.total \n        ELSE trp.amount \n    END AS \"Payment Amount\"\n    \nFROM storehub_mongo.transactionrecords tr\n\nleft join storehub_mongo.transactionrecords__payments trp \n    on trp.transactionrecords_foreignkey = tr._id\n\nleft join storehub_mongo.businesses b \n    on b.name = tr.business\n    \nleft join storehub_mongo.businesses__paymentoptions bpo \n    on (bpo.businesses_foreignkey = b._id and bpo.paymentid = trp.paymentmethod)\n    \nleft join storehub_mongo.businesses__stores bs\n    on tr.storeid = bs._id\n\nWHERE tr.business = 'signaturebeefnoodles'\n    and (tr.createdtime >= dateadd(hour,-8,'2025-01-01') and tr.createdtime < dateadd(hour,-8,'2025-07-01')) \n    AND tr.status not in ('pendingPayment','failed','created','paymentCancelled')\n    AND tr.iscancelled is not true\n    --AND tr.transactiontype <> 'PreOrder'  \n\nGROUP BY 1,2,3,4\nORDER BY \"Store Name\" ASC, txn_createdtime ASC \n-- LIMIT 50\n-- OFFSET 0\n)\n\n\nselect \n    --tmp.\"month\",\n    --tmp.\"Store Name\",\n    tmp.\"Payment Method\",\n    tmp.\"Total Sales\",\n    tmp.\"Total Transactions\",\n    tmp.\"Total Sales Returned\",\n    tmp.\"Total Items Returned\",\n    tmp.\"PreOrder Deposits\",\n    tmp.\"PreOrder Transactions\",\n    tmp.\"Total Sales\" + tmp.\"PreOrder Deposits\" - tmp.\"Total Sales Returned\" AS \"Net Sales\" -- paymentNetSales\nfrom (\n    select\n        --date_trunc('month',cast(base.txn_createdtime as date)) AS \"month\", -- change this line accordingly to get other time variable, eg. hourly, daily, weekly, etc\n        --to_char(cast(base.txn_createdtime as date),'Day') as \"day of week\", -- use this instead of the date_trunc line to get day of week\n        --base.\"Store Name\",\n        base.\"Payment Method\",\n        SUM(CASE WHEN base.transactiontype = 'Sale' THEN COALESCE(+ base.\"Payment Amount\",0) ELSE COALESCE(0,0) END) AS \"Total Sales\", -- paymentSales\n        SUM(CASE WHEN base.transactiontype = 'Sale' THEN COALESCE(1,0) ELSE COALESCE(0,0) END) AS \"Total Transactions\", -- salesCount\n        SUM(CASE WHEN base.transactiontype = 'Return'THEN COALESCE(+ base.\"Payment Amount\",0) ELSE COALESCE(0,0) END) AS \"Total Sales Returned\", -- paymentReturns\n        SUM(CASE WHEN base.transactiontype = 'Return' THEN COALESCE(1,0) ELSE COALESCE(0, 0) END) AS \"Total Items Returned\", -- returnsCount\n        SUM(CASE WHEN base.transactiontype = 'PreOrder' THEN COALESCE(+ base.\"Payment Amount\",0) ELSE COALESCE(0,0) END) AS \"PreOrder Deposits\", -- preOrderDeposits\n        SUM(CASE WHEN base.transactiontype = 'PreOrder' THEN COALESCE(1,0) ELSE COALESCE(0,0) END) AS \"PreOrder Transactions\" -- preorderCount\n\n    from base\n    \n    group by 1--,2,3\n    --order by \"Store Name\" asc, \"month\" asc\n    ) tmp\n\n--order by tmp.\"Store Name\" asc, tmp.\"month\" asc\n\n\n\n\n------------------------------------------------------------------------------------------\n-- Other useful sales report logic for ref (just not relevant to payment method report) --\n------------------------------------------------------------------------------------------\n--SUM(CASE WHEN tr.transactiontype = 'Return' THEN COALESCE(0,0) ELSE COALESCE(+tr.total,0) END) AS \"Total Sales\", --sales\n--SUM(CASE WHEN tr.transactiontype = 'Return' THEN COALESCE(-tr.tax,0) ELSE COALESCE(+tr.tax,0) END) AS \"Tax\", --tax\n--SUM(CASE WHEN tr.transactiontype = 'Return' THEN COALESCE(-tr.servicecharge,0) ELSE COALESCE(+tr.servicecharge,0) END) AS \"Service Charge\", --serviceCharge\n--SUM(CASE WHEN tr.transactiontype = 'Return' THEN COALESCE(-tr.roundedamount,0) ELSE COALESCE(+tr.roundedamount,0) END) AS \"Rounding\" --rounding\n--SUM(CASE WHEN tr.transactiontype = 'Return' THEN COALESCE(+tr.total,0) ELSE COALESCE(0,0) END) AS \"Total Sales Returned Amount\" --returns\n--COUNT(*) AS \"Total Transactions\", --count\n--SUM(CASE WHEN tr.transactiontype = 'Return' THEN COALESCE(-tr.discount,0) ELSE COALESCE(+tr.discount,0) END) AS \"Total Discount\", --discount\n--SUM(CASE WHEN tr.transactiontype = 'Return' THEN COALESCE(1,0) ELSE COALESCE(0,0) END) AS \"Total Sales Returned Count\", --returnsCount\n--SUM(CASE WHEN tr.transactiontype = 'Return' THEN COALESCE(+tr.total,0) ELSE COALESCE(0,0) END) AS \"Total Sales Returned Amount\", --returns\n--SUM(CASE WHEN tr.transactiontype = 'Return' THEN COALESCE(-tr.subtotal,0) ELSE COALESCE(+tr.subtotal,0) END) AS \"SubTotal\", --subtotal\n--SUM(CASE WHEN tr.transactiontype = 'Return' THEN COALESCE(-tr.cost,0) ELSE COALESCE(+tr.cost,0) END) AS \"Total Cost\" --cost",
+  "ai_generated_sql": "WITH payment_data AS (\n  SELECT\n    tr.transactiontype,\n    CASE\n      WHEN bpo.name IS NOT NULL AND bpo.name <> '' THEN bpo.name\n      ELSE trp.paymentmethod\n    END AS PaymentMethod,\n    CASE\n      WHEN trp.paymentmethod IS NULL OR trp.paymentmethod = '' THEN tr.total\n      ELSE trp.amount\n    END AS PaymentAmount\n  FROM\n    storehub_mongo.transactionrecords AS tr\n    LEFT JOIN storehub_mongo.transactionrecords__payments AS trp ON tr._id = trp.transactionrecords_foreignkey\n    LEFT JOIN storehub_mongo.businesses AS b ON tr.business = b.name\n    LEFT JOIN storehub_mongo.businesses__paymentoptions AS bpo ON b._id = bpo.businesses_foreignkey AND trp.paymentmethod = bpo.paymentid\n  WHERE\n    tr.business = 'signaturebeefnoodles'\n    AND tr.createdtime >= dateadd(hour, -8, '2025-01-01')\n    AND tr.createdtime < dateadd(hour, -8, '2025-07-01')\n    AND tr.status NOT IN ('pendingPayment', 'failed', 'created', 'paymentCancelled')\n    AND tr.iscancelled IS NOT TRUE\n)\nSELECT\n  PaymentMethod,\n  SUM(\n    CASE\n      WHEN transactiontype IN ('Sale', 'PreOrder') THEN COALESCE(PaymentAmount, 0)\n      WHEN transactiontype = 'Return' THEN COALESCE(- PaymentAmount, 0)\n      ELSE 0\n    END\n  ) AS NetSales\nFROM\n  payment_data\nGROUP BY\n  PaymentMethod\nORDER BY\n  PaymentMethod",
+  "api_result": {
+    "success": true,
+    "status_code": 202,
+    "data": {
+      "data": {
+        "rows": [
+          [
+            "Apple Pay",
+            1011.51
+          ],
+          [
+            "Card Payment",
+            2351.34
+          ],
+          [
+            "Card Payment (International)",
+            110.15
+          ],
+          [
+            "Cash",
+            226483.0
+          ],
+          [
+            "CreditCard",
+            825885.6
+          ],
+          [
+            "DebitCard",
+            169337.3
+          ],
+          [
+            "Food Panda",
+            2708.1
+          ],
+          [
+            "Grab -30%",
+            436.9
+          ],
+          [
+            "Grab Food",
+            257411.3
+          ],
+          [
+            "GrabPay",
+            556.54
+          ],
+          [
+            "Maybank QRpay",
+            348005.8
+          ],
+          [
+            "Online Banking",
+            1229.63
+          ],
+          [
+            "Online transfer",
+            3287.3
+          ],
+          [
+            "Shopee Food",
+            10658.7
+          ],
+          [
+            "Touch&#39;n Go eWallet",
+            1618.52
+          ],
+          [
+            "Voucher",
+            14.0
+          ]
+        ],
+        "cols": [
+          {
+            "display_name": "paymentmethod",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "paymentmethod",
+              {
+                "base-type": "type/Text"
+              }
+            ],
+            "name": "paymentmethod",
+            "base_type": "type/Text",
+            "effective_type": "type/Text"
+          },
+          {
+            "display_name": "netsales",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "netsales",
+              {
+                "base-type": "type/Decimal"
+              }
+            ],
+            "name": "netsales",
+            "base_type": "type/Decimal",
+            "effective_type": "type/Decimal"
+          }
+        ],
+        "native_form": {
+          "query": "WITH payment_data AS (\n  SELECT\n    tr.transactiontype,\n    CASE\n      WHEN bpo.name IS NOT NULL AND bpo.name <> '' THEN bpo.name\n      ELSE trp.paymentmethod\n    END AS PaymentMethod,\n    CASE\n      WHEN trp.paymentmethod IS NULL OR trp.paymentmethod = '' THEN tr.total\n      ELSE trp.amount\n    END AS PaymentAmount\n  FROM\n    storehub_mongo.transactionrecords AS tr\n    LEFT JOIN storehub_mongo.transactionrecords__payments AS trp ON tr._id = trp.transactionrecords_foreignkey\n    LEFT JOIN storehub_mongo.businesses AS b ON tr.business = b.name\n    LEFT JOIN storehub_mongo.businesses__paymentoptions AS bpo ON b._id = bpo.businesses_foreignkey AND trp.paymentmethod = bpo.paymentid\n  WHERE\n    tr.business = 'signaturebeefnoodles'\n    AND tr.createdtime >= dateadd(hour, -8, '2025-01-01')\n    AND tr.createdtime < dateadd(hour, -8, '2025-07-01')\n    AND tr.status NOT IN ('pendingPayment', 'failed', 'created', 'paymentCancelled')\n    AND tr.iscancelled IS NOT TRUE\n)\nSELECT\n  PaymentMethod,\n  SUM(\n    CASE\n      WHEN transactiontype IN ('Sale', 'PreOrder') THEN COALESCE(PaymentAmount, 0)\n      WHEN transactiontype = 'Return' THEN COALESCE(- PaymentAmount, 0)\n      ELSE 0\n    END\n  ) AS NetSales\nFROM\n  payment_data\nGROUP BY\n  PaymentMethod\nORDER BY\n  PaymentMethod"
+        },
+        "results_timezone": "Asia/Kuala_Lumpur",
+        "requested_timezone": "Asia/Kuala_Lumpur",
+        "results_metadata": {
+          "columns": [
+            {
+              "display_name": "paymentmethod",
+              "field_ref": [
+                "field",
+                "paymentmethod",
+                {
+                  "base-type": "type/Text"
+                }
+              ],
+              "name": "paymentmethod",
+              "base_type": "type/Text",
+              "effective_type": "type/Text",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 16,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Text": {
+                    "percent-json": 0.0,
+                    "percent-url": 0.0,
+                    "percent-email": 0.0,
+                    "percent-state": 0.0,
+                    "average-length": 11.8125
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "netsales",
+              "field_ref": [
+                "field",
+                "netsales",
+                {
+                  "base-type": "type/Decimal"
+                }
+              ],
+              "name": "netsales",
+              "base_type": "type/Decimal",
+              "effective_type": "type/Decimal",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 16,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 14.0,
+                    "q1": 784.025,
+                    "q3": 197910.15,
+                    "max": 825885.6,
+                    "sd": 221420.6007061792,
+                    "avg": 115694.105625
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "insights": null
+      },
+      "cached": false,
+      "database_id": 2,
+      "started_at": "2025-07-30T15:55:29.444426Z",
+      "json_query": {
+        "database": 2,
+        "type": "native",
+        "native": {
+          "query": "WITH payment_data AS (\n  SELECT\n    tr.transactiontype,\n    CASE\n      WHEN bpo.name IS NOT NULL AND bpo.name <> '' THEN bpo.name\n      ELSE trp.paymentmethod\n    END AS PaymentMethod,\n    CASE\n      WHEN trp.paymentmethod IS NULL OR trp.paymentmethod = '' THEN tr.total\n      ELSE trp.amount\n    END AS PaymentAmount\n  FROM\n    storehub_mongo.transactionrecords AS tr\n    LEFT JOIN storehub_mongo.transactionrecords__payments AS trp ON tr._id = trp.transactionrecords_foreignkey\n    LEFT JOIN storehub_mongo.businesses AS b ON tr.business = b.name\n    LEFT JOIN storehub_mongo.businesses__paymentoptions AS bpo ON b._id = bpo.businesses_foreignkey AND trp.paymentmethod = bpo.paymentid\n  WHERE\n    tr.business = 'signaturebeefnoodles'\n    AND tr.createdtime >= dateadd(hour, -8, '2025-01-01')\n    AND tr.createdtime < dateadd(hour, -8, '2025-07-01')\n    AND tr.status NOT IN ('pendingPayment', 'failed', 'created', 'paymentCancelled')\n    AND tr.iscancelled IS NOT TRUE\n)\nSELECT\n  PaymentMethod,\n  SUM(\n    CASE\n      WHEN transactiontype IN ('Sale', 'PreOrder') THEN COALESCE(PaymentAmount, 0)\n      WHEN transactiontype = 'Return' THEN COALESCE(- PaymentAmount, 0)\n      ELSE 0\n    END\n  ) AS NetSales\nFROM\n  payment_data\nGROUP BY\n  PaymentMethod\nORDER BY\n  PaymentMethod"
+        },
+        "middleware": {
+          "js-int-to-string?": true,
+          "add-default-userland-constraints?": true
+        }
+      },
+      "average_execution_time": null,
+      "status": "completed",
+      "context": "ad-hoc",
+      "row_count": 16,
+      "running_time": 11694
+    },
+    "row_count": 16,
+    "query": "WITH payment_data AS (\n  SELECT\n    tr.transactiontype,\n    CASE\n      WHEN bpo.name IS NOT NULL AND bpo.name <> '' THEN bpo.name\n      ELSE trp.paymentmethod\n    END AS PaymentMethod,\n    CASE\n      WHEN trp.paymentmethod IS NULL OR trp.paymentmethod = '' THEN tr.total\n      ELSE trp.amount\n    END AS PaymentAmount\n  FROM\n    storehub_mongo.transactionrecords AS tr\n    LEFT JOIN storehub_mongo.transactionrecords__payments AS trp ON tr._id = trp.transactionrecords_foreignkey\n    LEFT JOIN storehub_mongo.businesses AS b ON tr.business = b.name\n    LEFT JOIN storehub_mongo.businesses__paymentoptions AS bpo ON b._id = bpo.businesses_foreignkey AND trp.paymentmethod = bpo.paymentid\n  WHERE\n    tr.business = 'signaturebeefnoodles'\n    AND tr.createdtime >= dateadd(hour, -8, '2025-01-01')\n    AND tr.createdtime < dateadd(hour, -8, '2025-07-01')\n    AND tr.status NOT IN ('pendingPayment', 'failed', 'created', 'paymentCancelled')\n    AND tr.iscancelled IS NOT TRUE\n)\nSELECT\n  PaymentMethod,\n  SUM(\n    CASE\n      WHEN transactiontype IN ('Sale', 'PreOrder') THEN COALESCE(PaymentAmount, 0)\n      WHEN transactiontype = 'Return' THEN COALESCE(- PaymentAmount, 0)\n      ELSE 0\n    END\n  ) AS NetSales\nFROM\n  payment_data\nGROUP BY\n  PaymentMethod\nORDER BY\n  PaymentMethod"
+  }
+}

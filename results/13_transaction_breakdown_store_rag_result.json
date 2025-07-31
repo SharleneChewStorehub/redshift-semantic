@@ -1,0 +1,236 @@
+{
+  "file_name": "13_transaction_breakdown_store.sql",
+  "timestamp": "/Users/sharlenechew/redshift-semantic",
+  "business_question": "I need a comprehensive monthly sales roll-up for Malaysia for January 2025. The report must provide a complete breakdown of GMV and transaction counts for every single sales channel, from in-store POS to all our third-party marketplace integrations like GrabFood and Shopify.",
+  "golden_sql": "SELECT \n    b.name as \"bo account name\",\n    b.subscriptionstatus,\n    b.planid,\n    case\n        when b.businesstype in ('Bar','Cafe','Food Truck','Restaurant','Restuarant','cafe','restaurant','Cafe') then 'FnB'\n        when b.businesstype in ('Retail','Retail Store','retail','E-Commerce','eCommerce','ecommerce') then 'Retail'\n        when b.businesstype in ('Salon/Spa','Service','service') then 'Service' \n        else 'Other' \n    end as \"Industry\",\n    tr.storeid,\n    REGEXP_REPLACE (REGEXP_REPLACE (bs.name, '&#39;', ''''), '%7C;', ' - ') as \"storename\",\n    bs.postalcode,\n    bs.city,\n    bs.state,\n    date_trunc('month',cast(dateadd(hour,8,tr.createdtime) as date)) as \"month\",\n    COUNT(distinct case when (tr.channel is null or tr.channel = 2) then tr._id end) as \"offline txn#\",\n    sum(case when (tr.channel is null or tr.channel = 2) then tr.total end) as \"offline gmv\",\n    --sum(case when (tr.channel is null or tr.channel = 2) then tr.pax end) as \"pax\",\n    --count(distinct case when (tr.channel is null or tr.channel = 2) and tr.pax is null then tr._id end) as \"one pax\",\n    --isnull(\"pax\",0) + isnull(\"one pax\",0) as \"total pax#\",\n    count(distinct case when tr.channel = 3 and tr.shippingtype in ('dineIn','takeaway') then tr._id end) as \"qrtxn#\",\n    sum(case when tr.channel = 3 and tr.shippingtype in ('dineIn','takeaway') then tr.total end) as \"qr gmv\",\n    count(distinct case when tr.channel = 3 and tr.shippingtype in ('delivery','pickup') then tr._id end) as \"bdtxn#\",\n    sum(case when tr.channel = 3 and tr.shippingtype in ('delivery','pickup') then tr.total end) as \"bd gmv\",\n    count(distinct case when tr.channel = 1 then tr._id end) as \"ecomm txn#\",\n    sum(case when tr.channel = 1 then tr.total end) as \"ecomm gmv\",\n    count(distinct case when tr.channel = 10 then tr._id end) as \"fdi grabfood txn#\",\n    sum(case when tr.channel = 10 then tr.total end) as \"fdi grabfood gmv\",\n    count(distinct case when tr.channel = 11 then tr._id end) as \"fdi shopeefood txn#\",\n    sum(case when tr.channel = 11 then tr.total end) as \"fdi shopeefood gmv\",\n    count(distinct case when tr.channel = 12 then tr._id end) as \"fdi foodpanda txn#\",\n    sum(case when tr.channel = 12 then tr.total end) as \"fdi foodpanda gmv\",\n    count(distinct case when tr.channel = 100 then tr._id end) as \"mpi lazada txn#\",\n    sum(case when tr.channel = 100 then tr.total end) as \"mpi lazada gmv\",\n    count(distinct case when tr.channel = 101 then tr._id end) as \"mpi shopee txn#\",\n    sum(case when tr.channel = 101 then tr.total end) as \"mpi shopee gmv\",\n    count(distinct case when tr.channel = 102 then tr._id end) as \"mpi zalora txn#\",\n    sum(case when tr.channel = 102 then tr.total end) as \"mpi zalora gmv\",\n    count(distinct case when tr.channel = 103 then tr._id end) as \"mpi woocommerce txn#\",\n    sum(case when tr.channel = 103 then tr.total end) as \"mpi woocommerce gmv\",\n    count(distinct case when tr.channel = 104 then tr._id end) as \"mpi shopify txn#\",\n    sum(case when tr.channel = 104 then tr.total end) as \"mpi shopify gmv\",\n    count(distinct case when tr.channel = 105 then tr._id end) as \"mpi tiktokshop txn#\",\n    sum(case when tr.channel = 105 then tr.total end) as \"mpi tiktokshop gmv\"\n    --sum(t.total)/30 as \"GMV\"\n\nfrom storehub_mongo.businesses b\n\nleft join storehub_mongo.transactionrecords tr\n    on b.name = tr.business\n\nleft join storehub_mongo.businesses__stores bs\n    on bs._id = tr.storeid\n    \nwhere CHARINDEX('internal', b.planid) = 0 \n    and CHARINDEX('@storehub.com', b.email) = 0\n    and b.country = 'MY'\n    --and b.subscriptionstatus = 'Active'\n    --and (tr.channel = 3 or tr.channel is null or tr.channel = 2)\n    and tr.transactiontype = 'Sale'\n    and tr.iscancelled is not true\n    and tr.status not in ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n    and tr.total<10000000\n    and (tr.createdtime >= dateadd(hour,-8,'2025-01-01') and tr.createdtime < dateadd(hour,-8,'2025-02-01'))\n    --and b.name = 'thecoffeeacademics'\n    --and tr.business = 'ashhryshoshedap'\n\ngroup by 1,2,3,4,5,6,7,8,9,10\norder by \"bo account name\" ASC, \"storename\" ASC, \"month\" ASC",
+  "ai_generated_sql": "SELECT\n    CASE\n        WHEN tr.channel IS NULL OR tr.channel = 2 THEN 'In-Store POS'\n        WHEN tr.channel = 1 THEN 'E-Commerce'\n        WHEN tr.channel = 3 AND tr.shippingtype IN ('dineIn', 'takeaway') THEN 'QR Order & Pay'\n        WHEN tr.channel = 3 AND tr.shippingtype IN ('delivery', 'pickup') THEN 'Beep Delivery'\n        WHEN tr.channel = 10 THEN 'GrabFood'\n        WHEN tr.channel = 11 THEN 'ShopeeFood'\n        WHEN tr.channel = 12 THEN 'FoodPanda'\n        WHEN tr.channel = 100 THEN 'Lazada'\n        WHEN tr.channel = 101 THEN 'Shopee'\n        WHEN tr.channel = 102 THEN 'Zalora'\n        WHEN tr.channel = 103 THEN 'WooCommerce'\n        WHEN tr.channel = 104 THEN 'Shopify'\n        WHEN tr.channel = 105 THEN 'TikTok Shop'\n        ELSE 'Other'\n    END AS sales_channel,\n    SUM(tr.total) AS total_gmv,\n    COUNT(DISTINCT tr._id) AS transaction_count\nFROM\n    storehub_mongo.businesses AS b\nLEFT JOIN\n    storehub_mongo.transactionrecords AS tr ON b.name = tr.business\nWHERE\n    b.country = 'MY'\n    AND (tr.createdtime >= DATEADD(hour, -8, '2025-01-01') AND tr.createdtime < DATEADD(hour, -8, '2025-02-01'))\n    AND tr.transactiontype = 'Sale'\n    AND tr.iscancelled IS NOT TRUE\n    AND tr.status NOT IN ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n    AND tr.total < 10000000\n    AND CHARINDEX('internal', b.planid) = 0\n    AND CHARINDEX('@storehub.com', b.email) = 0\nGROUP BY\n    1\nORDER BY\n    total_gmv DESC;",
+  "api_result": {
+    "success": true,
+    "status_code": 202,
+    "data": {
+      "data": {
+        "rows": [
+          [
+            "In-Store POS",
+            506889288.26,
+            10917704
+          ],
+          [
+            "QR Order & Pay",
+            33098267.12,
+            551588
+          ],
+          [
+            "GrabFood",
+            2837839.93,
+            61812
+          ],
+          [
+            "Beep Delivery",
+            1872754.09,
+            22639
+          ],
+          [
+            "FoodPanda",
+            652638.56,
+            19168
+          ],
+          [
+            "TikTok Shop",
+            583415.95,
+            4929
+          ],
+          [
+            "ShopeeFood",
+            508617.79,
+            19540
+          ],
+          [
+            "E-Commerce",
+            462437.12,
+            2781
+          ],
+          [
+            "Shopee",
+            235032.25,
+            2200
+          ],
+          [
+            "Lazada",
+            22192.5,
+            208
+          ],
+          [
+            "Shopify",
+            1144.0,
+            7
+          ]
+        ],
+        "cols": [
+          {
+            "display_name": "sales_channel",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "sales_channel",
+              {
+                "base-type": "type/Text"
+              }
+            ],
+            "name": "sales_channel",
+            "base_type": "type/Text",
+            "effective_type": "type/Text"
+          },
+          {
+            "display_name": "total_gmv",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "total_gmv",
+              {
+                "base-type": "type/Decimal"
+              }
+            ],
+            "name": "total_gmv",
+            "base_type": "type/Decimal",
+            "effective_type": "type/Decimal"
+          },
+          {
+            "display_name": "transaction_count",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "transaction_count",
+              {
+                "base-type": "type/BigInteger"
+              }
+            ],
+            "name": "transaction_count",
+            "base_type": "type/BigInteger",
+            "effective_type": "type/BigInteger"
+          }
+        ],
+        "native_form": {
+          "query": "SELECT\n    CASE\n        WHEN tr.channel IS NULL OR tr.channel = 2 THEN 'In-Store POS'\n        WHEN tr.channel = 1 THEN 'E-Commerce'\n        WHEN tr.channel = 3 AND tr.shippingtype IN ('dineIn', 'takeaway') THEN 'QR Order & Pay'\n        WHEN tr.channel = 3 AND tr.shippingtype IN ('delivery', 'pickup') THEN 'Beep Delivery'\n        WHEN tr.channel = 10 THEN 'GrabFood'\n        WHEN tr.channel = 11 THEN 'ShopeeFood'\n        WHEN tr.channel = 12 THEN 'FoodPanda'\n        WHEN tr.channel = 100 THEN 'Lazada'\n        WHEN tr.channel = 101 THEN 'Shopee'\n        WHEN tr.channel = 102 THEN 'Zalora'\n        WHEN tr.channel = 103 THEN 'WooCommerce'\n        WHEN tr.channel = 104 THEN 'Shopify'\n        WHEN tr.channel = 105 THEN 'TikTok Shop'\n        ELSE 'Other'\n    END AS sales_channel,\n    SUM(tr.total) AS total_gmv,\n    COUNT(DISTINCT tr._id) AS transaction_count\nFROM\n    storehub_mongo.businesses AS b\nLEFT JOIN\n    storehub_mongo.transactionrecords AS tr ON b.name = tr.business\nWHERE\n    b.country = 'MY'\n    AND (tr.createdtime >= DATEADD(hour, -8, '2025-01-01') AND tr.createdtime < DATEADD(hour, -8, '2025-02-01'))\n    AND tr.transactiontype = 'Sale'\n    AND tr.iscancelled IS NOT TRUE\n    AND tr.status NOT IN ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n    AND tr.total < 10000000\n    AND CHARINDEX('internal', b.planid) = 0\n    AND CHARINDEX('@storehub.com', b.email) = 0\nGROUP BY\n    1\nORDER BY\n    total_gmv DESC;"
+        },
+        "results_timezone": "Asia/Kuala_Lumpur",
+        "requested_timezone": "Asia/Kuala_Lumpur",
+        "results_metadata": {
+          "columns": [
+            {
+              "display_name": "sales_channel",
+              "field_ref": [
+                "field",
+                "sales_channel",
+                {
+                  "base-type": "type/Text"
+                }
+              ],
+              "name": "sales_channel",
+              "base_type": "type/Text",
+              "effective_type": "type/Text",
+              "semantic_type": "type/Source",
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 11,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Text": {
+                    "percent-json": 0.0,
+                    "percent-url": 0.0,
+                    "percent-email": 0.0,
+                    "percent-state": 0.0,
+                    "average-length": 9.636363636363637
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "total_gmv",
+              "field_ref": [
+                "field",
+                "total_gmv",
+                {
+                  "base-type": "type/Decimal"
+                }
+              ],
+              "name": "total_gmv",
+              "base_type": "type/Decimal",
+              "effective_type": "type/Decimal",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 11,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 1144.0,
+                    "q1": 291883.4675,
+                    "q3": 2596568.47,
+                    "max": 506889288.26,
+                    "sd": 151930249.4062301,
+                    "avg": 49742147.96090908
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "transaction_count",
+              "field_ref": [
+                "field",
+                "transaction_count",
+                {
+                  "base-type": "type/BigInteger"
+                }
+              ],
+              "name": "transaction_count",
+              "base_type": "type/BigInteger",
+              "effective_type": "type/BigInteger",
+              "semantic_type": "type/Quantity",
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 11,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 7.0,
+                    "q1": 2345.25,
+                    "q3": 52018.75,
+                    "max": 10917704.0,
+                    "sd": 3275171.269460615,
+                    "avg": 1054779.6363636365
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "insights": null
+      },
+      "cached": false,
+      "database_id": 2,
+      "started_at": "2025-07-30T15:57:22.206113Z",
+      "json_query": {
+        "database": 2,
+        "type": "native",
+        "native": {
+          "query": "SELECT\n    CASE\n        WHEN tr.channel IS NULL OR tr.channel = 2 THEN 'In-Store POS'\n        WHEN tr.channel = 1 THEN 'E-Commerce'\n        WHEN tr.channel = 3 AND tr.shippingtype IN ('dineIn', 'takeaway') THEN 'QR Order & Pay'\n        WHEN tr.channel = 3 AND tr.shippingtype IN ('delivery', 'pickup') THEN 'Beep Delivery'\n        WHEN tr.channel = 10 THEN 'GrabFood'\n        WHEN tr.channel = 11 THEN 'ShopeeFood'\n        WHEN tr.channel = 12 THEN 'FoodPanda'\n        WHEN tr.channel = 100 THEN 'Lazada'\n        WHEN tr.channel = 101 THEN 'Shopee'\n        WHEN tr.channel = 102 THEN 'Zalora'\n        WHEN tr.channel = 103 THEN 'WooCommerce'\n        WHEN tr.channel = 104 THEN 'Shopify'\n        WHEN tr.channel = 105 THEN 'TikTok Shop'\n        ELSE 'Other'\n    END AS sales_channel,\n    SUM(tr.total) AS total_gmv,\n    COUNT(DISTINCT tr._id) AS transaction_count\nFROM\n    storehub_mongo.businesses AS b\nLEFT JOIN\n    storehub_mongo.transactionrecords AS tr ON b.name = tr.business\nWHERE\n    b.country = 'MY'\n    AND (tr.createdtime >= DATEADD(hour, -8, '2025-01-01') AND tr.createdtime < DATEADD(hour, -8, '2025-02-01'))\n    AND tr.transactiontype = 'Sale'\n    AND tr.iscancelled IS NOT TRUE\n    AND tr.status NOT IN ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n    AND tr.total < 10000000\n    AND CHARINDEX('internal', b.planid) = 0\n    AND CHARINDEX('@storehub.com', b.email) = 0\nGROUP BY\n    1\nORDER BY\n    total_gmv DESC;"
+        },
+        "middleware": {
+          "js-int-to-string?": true,
+          "add-default-userland-constraints?": true
+        }
+      },
+      "average_execution_time": null,
+      "status": "completed",
+      "context": "ad-hoc",
+      "row_count": 11,
+      "running_time": 18633
+    },
+    "row_count": 11,
+    "query": "SELECT\n    CASE\n        WHEN tr.channel IS NULL OR tr.channel = 2 THEN 'In-Store POS'\n        WHEN tr.channel = 1 THEN 'E-Commerce'\n        WHEN tr.channel = 3 AND tr.shippingtype IN ('dineIn', 'takeaway') THEN 'QR Order & Pay'\n        WHEN tr.channel = 3 AND tr.shippingtype IN ('delivery', 'pickup') THEN 'Beep Delivery'\n        WHEN tr.channel = 10 THEN 'GrabFood'\n        WHEN tr.channel = 11 THEN 'ShopeeFood'\n        WHEN tr.channel = 12 THEN 'FoodPanda'\n        WHEN tr.channel = 100 THEN 'Lazada'\n        WHEN tr.channel = 101 THEN 'Shopee'\n        WHEN tr.channel = 102 THEN 'Zalora'\n        WHEN tr.channel = 103 THEN 'WooCommerce'\n        WHEN tr.channel = 104 THEN 'Shopify'\n        WHEN tr.channel = 105 THEN 'TikTok Shop'\n        ELSE 'Other'\n    END AS sales_channel,\n    SUM(tr.total) AS total_gmv,\n    COUNT(DISTINCT tr._id) AS transaction_count\nFROM\n    storehub_mongo.businesses AS b\nLEFT JOIN\n    storehub_mongo.transactionrecords AS tr ON b.name = tr.business\nWHERE\n    b.country = 'MY'\n    AND (tr.createdtime >= DATEADD(hour, -8, '2025-01-01') AND tr.createdtime < DATEADD(hour, -8, '2025-02-01'))\n    AND tr.transactiontype = 'Sale'\n    AND tr.iscancelled IS NOT TRUE\n    AND tr.status NOT IN ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\n    AND tr.total < 10000000\n    AND CHARINDEX('internal', b.planid) = 0\n    AND CHARINDEX('@storehub.com', b.email) = 0\nGROUP BY\n    1\nORDER BY\n    total_gmv DESC;"
+  }
+}

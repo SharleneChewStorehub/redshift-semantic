@@ -1,0 +1,1527 @@
+{
+  "file_name": "14_transaction_item.sql",
+  "timestamp": "/Users/sharlenechew/redshift-semantic",
+  "business_question": "I need a detailed, item-level sales breakdown for the merchant 'balqis' for last month. The report must show the total sales, discounts, and taxes for every product and custom item sold.",
+  "golden_sql": "with products as (\n    select distinct original_id as productid, title as item, category as product_category\n    from storehub_mongo.products\n    where business = 'balqis'\n)\nSELECT \n    date_trunc('month',DATEADD(hour, 8, tr.createdtime)) as \"Month\",\n    -- tr.receiptnumber as \"Receipt Number\",\n    -- tr.originalreceiptnumber as \"Original Sale Receipt Number\",\n    -- bs._id,\n    tr.business as \"BO account name\",\n    bs.name as \"Store\",\n    -- tr.registerid as \"Register Id\",\n    -- CAST(e.firstname AS VARCHAR)+' '+CAST(e.lastname AS VARCHAR) as \"Employee\",\n    tr.transactiontype as \"Transaction Type\",\n    case \n        when tr.channel is null or tr.channel = 2 then 'Instore POS' \n        when tr.channel = 3 and tr.shippingtype in ('delivery','pickup') then 'Beep Delivery'\n        when tr.channel = 3 and tr.shippingtype in ('dineIn','takeaway') then 'Beep QR'\n        when tr.channel = 1 then 'Ecommerce'\n        when tr.channel = 10 then 'GrabFood'\n        when tr.channel = 11 then 'ShopeeFood'\n        when tr.channel = 12 then 'FoodPanda'\n    end as transaction_channel,\n    -- null as \"Customer\",\n    sum(i.subtotal) as \"item subtotal\",\n    sum(i.discount) as \"item discount\",\n    sum(i.total) as \"item total\",\n    -- p.amount,\n    sum(i.tax) as \"item tax\",\n    -- i.total + i.tax amount_with_tax,\n    -- p.paymentmethod,\n    -- po.name paymentmethod,\n    case when i.itemtype = '' then prod.item else i.itemtype end item,\n    prod.product_category,\n    sum(tr.servicecharge) receipt_servicecharge,\n    sum(tr.roundedamount) receipt_roundedamount,\n    sum(tr.total) receipt_total\n    -- tr.comment\nFROM storehub_mongo.transactionrecords tr \nleft join storehub_mongo.businesses__stores bs on bs._id = tr.storeid\nleft join storehub_mongo.businesses__cashregisters bc on bc._id = tr.registerid\nleft join storehub_mongo.employees e on e._id = tr.employeenumber\nleft join storehub_mongo.transactionrecords__items i on i.transactionrecords_foreignkey = tr._id\nleft join products prod on prod.productid = i.productid\nWHERE (tr.\"business\" = 'balqis')\n    --and (tr.createdtime >= dateadd(hour,-8,'2025-01-01') and tr.createdtime < dateadd(hour,-8,'2025-02-01'))\n    and tr.iscancelled is not true\n    and tr.transactiontype = 'Sale'\n    and tr.status not in ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification') \n    and tr.createdtime >= dateadd(hour,-8,'2022-01-01') \n    and tr.createdtime >= dateadd(hour,-8,dateadd('month',-1,date_trunc('month',current_date))) and tr.createdtime < dateadd(hour,-8,date_trunc('month',current_date))\ngroup by 1,2,3,4,5,10,11\norder by 5,3 desc",
+  "ai_generated_sql": "WITH products AS (\n    SELECT\n        original_id AS productid,\n        title\n    FROM\n        storehub_mongo.products\n    WHERE\n        business = 'balqis'\n)\nSELECT\n    CASE\n        WHEN i.itemtype = '' THEN prod.title\n        ELSE i.itemtype\n    END AS item_name,\n    SUM(i.subtotal) AS total_sales,\n    SUM(i.discount) AS total_discounts,\n    SUM(i.tax) AS total_taxes\nFROM\n    storehub_mongo.transactionrecords AS tr\n    JOIN storehub_mongo.transactionrecords__items AS i ON i.transactionrecords_foreignkey = tr._id\n    LEFT JOIN products AS prod ON prod.productid = i.productid\nWHERE\n    tr.business = 'balqis'\n    AND tr.createdtime >= DATEADD(hour, -8, DATEADD('month', -1, DATE_TRUNC('month', CURRENT_DATE)))\n    AND tr.createdtime < DATEADD(hour, -8, DATE_TRUNC('month', CURRENT_DATE))\n    AND tr.iscancelled IS NOT TRUE\n    AND tr.transactiontype = 'Sale'\n    AND tr.status NOT IN ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\nGROUP BY\n    1\nORDER BY\n    total_sales DESC;",
+  "api_result": {
+    "success": true,
+    "status_code": 202,
+    "data": {
+      "data": {
+        "rows": [
+          [
+            "Chicken Mandi Whole",
+            38396.0,
+            1182.06,
+            2232.82
+          ],
+          [
+            "Mandi Lamb Regular",
+            28386.0,
+            918.17,
+            1648.06
+          ],
+          [
+            "Chicken Mandi Quarter",
+            24408.0,
+            1044.15,
+            1401.96
+          ],
+          [
+            "BUFFET BALQIS ADULT",
+            22533.39,
+            33.4,
+            1350.0
+          ],
+          [
+            "ServiceCharge",
+            21573.23,
+            0.0,
+            0.0
+          ],
+          [
+            "Mandi Lamb ( 1/2 Kg )",
+            15840.0,
+            406.18,
+            926.02
+          ],
+          [
+            "Chicken Mandi Half",
+            13080.0,
+            484.93,
+            755.73
+          ],
+          [
+            "Mandi Lamb 1Kg",
+            13020.0,
+            153.65,
+            771.99
+          ],
+          [
+            "Beef Pepperoni Pizza",
+            11229.0,
+            527.75,
+            642.05
+          ],
+          [
+            "Haneeth Lamb (Regular)",
+            6574.0,
+            232.27,
+            380.52
+          ],
+          [
+            "Lemon Tea",
+            5760.6,
+            97.85,
+            340.19
+          ],
+          [
+            "Kunafa Khishneh Cream (Rough)",
+            5646.3,
+            239.34,
+            324.84
+          ],
+          [
+            "Mix BBQ Platter",
+            5537.0,
+            82.89,
+            327.25
+          ],
+          [
+            "Chicken Kebab",
+            4926.0,
+            169.8,
+            285.38
+          ],
+          [
+            "Madhbi BBQ Lamb Half",
+            4346.0,
+            199.54,
+            248.82
+          ],
+          [
+            "Special BBQ Chicken",
+            4071.0,
+            117.11,
+            237.25
+          ],
+          [
+            "Haneeth Lamb (1/2 kg)",
+            3920.0,
+            44.59,
+            232.52
+          ],
+          [
+            "Watermelon",
+            3850.0,
+            67.13,
+            226.98
+          ],
+          [
+            "Lamb Kebab",
+            3842.0,
+            110.47,
+            223.91
+          ],
+          [
+            "Chicken Kabsa Quarter",
+            3636.0,
+            89.79,
+            212.78
+          ],
+          [
+            "Adani Tea",
+            3570.4,
+            88.27,
+            209.56
+          ],
+          [
+            "Chicken Haneeth Quarter",
+            3348.0,
+            83.99,
+            195.82
+          ],
+          [
+            "Fahsah Lamb",
+            3334.0,
+            118.43,
+            192.94
+          ],
+          [
+            "Kabsa Lamb (1/2Kg)",
+            3280.0,
+            39.38,
+            194.43
+          ],
+          [
+            "Wild Mushroom Soup With Garlic Bread",
+            3073.8,
+            109.98,
+            177.4
+          ],
+          [
+            "Extra Mandi Rice",
+            2821.0,
+            131.16,
+            161.43
+          ],
+          [
+            "Balqis BBQ Platter",
+            2815.0,
+            90.83,
+            163.45
+          ],
+          [
+            "Honey Lemon",
+            2747.85,
+            86.48,
+            160.16
+          ],
+          [
+            "Kabsa Lamb Regular",
+            2622.0,
+            86.09,
+            152.17
+          ],
+          [
+            "Mulawah Bread",
+            2556.0,
+            80.75,
+            148.5
+          ],
+          [
+            "Hummus",
+            2446.05,
+            82.85,
+            142.18
+          ],
+          [
+            "Margarita Pizza",
+            2236.0,
+            78.28,
+            129.49
+          ],
+          [
+            "Kunafa Khisneh With Cheese (Rough)",
+            2203.4,
+            52.02,
+            129.25
+          ],
+          [
+            "Madhbi BBQ Lamb 1Kg",
+            2130.0,
+            42.15,
+            125.28
+          ],
+          [
+            "Orange",
+            2112.0,
+            32.78,
+            124.74
+          ],
+          [
+            "Mango",
+            2064.0,
+            44.62,
+            121.17
+          ],
+          [
+            "Chicken Pepperoni Pizza",
+            1984.0,
+            78.24,
+            114.36
+          ],
+          [
+            "Tiramisu Cake",
+            1983.15,
+            118.16,
+            112.12
+          ],
+          [
+            "Meat Skewers",
+            1970.0,
+            73.14,
+            113.8
+          ],
+          [
+            "Special Beef Pizza",
+            1903.0,
+            65.37,
+            110.24
+          ],
+          [
+            "Chicken Haneeth Whole",
+            1682.0,
+            36.17,
+            98.76
+          ],
+          [
+            "Sashuka",
+            1610.0,
+            54.03,
+            93.39
+          ],
+          [
+            "Queen Tea Ice",
+            1577.05,
+            54.56,
+            91.54
+          ],
+          [
+            "Chicken Kabsa Whole",
+            1566.0,
+            37.7,
+            91.7
+          ],
+          [
+            "Okra with Lamb",
+            1508.0,
+            35.64,
+            88.34
+          ],
+          [
+            "Mix Balqis Appetizer",
+            1507.0,
+            44.21,
+            87.77
+          ],
+          [
+            "Arabic Salad",
+            1499.3,
+            34.47,
+            88.01
+          ],
+          [
+            "Spicy Chicken Pizza",
+            1494.0,
+            36.84,
+            87.44
+          ],
+          [
+            "Chicken Haneeth Half",
+            1470.0,
+            68.9,
+            84.08
+          ],
+          [
+            "French Fries",
+            1449.0,
+            60.3,
+            83.3
+          ],
+          [
+            "Kabsa Lamb 1Kg",
+            1400.0,
+            11.63,
+            83.31
+          ],
+          [
+            "Hummus with Meat",
+            1351.05,
+            64.57,
+            77.32
+          ],
+          [
+            "Arabic Mint Tea",
+            1339.2,
+            40.63,
+            78.24
+          ],
+          [
+            "Arayes",
+            1339.05,
+            50.24,
+            77.41
+          ],
+          [
+            "Tea&#39;O",
+            1280.5,
+            41.51,
+            74.34
+          ],
+          [
+            "Fish & Chip",
+            1269.35,
+            13.75,
+            75.42
+          ],
+          [
+            "Avocado",
+            1216.95,
+            40.31,
+            70.68
+          ],
+          [
+            "ice water  1761",
+            1211.8,
+            55.25,
+            68.97
+          ],
+          [
+            "Watermelon Lychee",
+            1116.0,
+            27.03,
+            65.34
+          ],
+          [
+            "Mineral Water",
+            1114.0,
+            33.9,
+            64.8
+          ],
+          [
+            "Carbonara Pasta",
+            1112.9,
+            43.44,
+            64.25
+          ],
+          [
+            "Extra Mandi Lamb only",
+            1087.0,
+            40.71,
+            62.77
+          ],
+          [
+            "Chicken Kabsa Half",
+            1020.0,
+            31.51,
+            59.3
+          ],
+          [
+            "Lamb Chop Hot Plate",
+            1009.7,
+            13.18,
+            59.77
+          ],
+          [
+            "Ugdah Lamb",
+            1008.0,
+            32.99,
+            58.52
+          ],
+          [
+            "Haneeth Lamb (1Kg)",
+            980.0,
+            98.93,
+            52.87
+          ],
+          [
+            "Hawaiian Pizza",
+            961.0,
+            26.74,
+            56.07
+          ],
+          [
+            "Greek Salad",
+            954.0,
+            32.86,
+            55.26
+          ],
+          [
+            "Iced Lemon Blue Lagoon",
+            930.0,
+            27.05,
+            54.18
+          ],
+          [
+            "Honey n Labnah Pizza",
+            894.0,
+            31.77,
+            51.71
+          ],
+          [
+            "Tabbouleh Salad",
+            885.0,
+            20.76,
+            51.85
+          ],
+          [
+            "Extra Mandi Chicken only",
+            872.0,
+            44.94,
+            49.61
+          ],
+          [
+            "Chicken Chop Hot Plate",
+            826.2,
+            22.23,
+            48.28
+          ],
+          [
+            "Iced Lemon Lychee",
+            817.5,
+            14.62,
+            48.18
+          ],
+          [
+            "Fattoush Salad",
+            813.45,
+            20.73,
+            47.6
+          ],
+          [
+            "Apple",
+            786.0,
+            22.04,
+            45.84
+          ],
+          [
+            "Kunafa Kishneh With Cream Mix Pistachio",
+            778.05,
+            20.73,
+            45.53
+          ],
+          [
+            "Bechamel Pasta",
+            758.1,
+            37.27,
+            43.31
+          ],
+          [
+            "Cheesy Chicken Chop",
+            748.5,
+            9.93,
+            44.36
+          ],
+          [
+            "Mozarella Manqusha",
+            715.0,
+            29.8,
+            41.14
+          ],
+          [
+            "Falafel Plate",
+            705.0,
+            38.04,
+            40.02
+          ],
+          [
+            "Shish Tawook",
+            700.0,
+            13.04,
+            41.23
+          ],
+          [
+            "Kebdah Saj (Liver)",
+            690.0,
+            26.78,
+            39.79
+          ],
+          [
+            "Chocolate Milkshake",
+            690.0,
+            18.84,
+            40.28
+          ],
+          [
+            "Milk Tea",
+            651.9,
+            32.05,
+            37.35
+          ],
+          [
+            "Ugdah Chicken",
+            638.0,
+            13.66,
+            37.48
+          ],
+          [
+            "Cream Caramel",
+            616.0,
+            14.35,
+            36.09
+          ],
+          [
+            "Chicken Crispy",
+            596.7,
+            17.82,
+            34.77
+          ],
+          [
+            "Iced Lemon Blueberry",
+            592.5,
+            9.89,
+            34.94
+          ],
+          [
+            "Saloona Prawns",
+            586.0,
+            15.46,
+            34.24
+          ],
+          [
+            "Pineapple Sour Plum",
+            585.0,
+            12.53,
+            34.34
+          ],
+          [
+            "Lamb Shank",
+            552.0,
+            6.96,
+            32.7
+          ],
+          [
+            "Beefball Spaghetti",
+            538.5,
+            7.09,
+            31.94
+          ],
+          [
+            "Fresh Lemon",
+            537.0,
+            14.51,
+            31.35
+          ],
+          [
+            "Carrot & Orange",
+            522.0,
+            2.43,
+            31.18
+          ],
+          [
+            "Strawberry Milkshake",
+            517.5,
+            4.08,
+            30.8
+          ],
+          [
+            "Spring Rolls",
+            495.0,
+            8.54,
+            29.18
+          ],
+          [
+            "Veggie Arabian Pizza",
+            490.0,
+            13.13,
+            28.62
+          ],
+          [
+            "Mojito",
+            489.0,
+            13.15,
+            28.55
+          ],
+          [
+            "Cheesy Baked Rice with Chicken",
+            481.95,
+            8.64,
+            28.43
+          ],
+          [
+            "Baklava Box",
+            480.0,
+            10.45,
+            28.17
+          ],
+          [
+            "Beefball n Mashed Potato",
+            458.85,
+            19.62,
+            26.39
+          ],
+          [
+            "Extra Garlic Sauce",
+            450.0,
+            30.78,
+            25.14
+          ],
+          [
+            "Kunafa Kishneh With Cream Mix Hazelnut",
+            430.8,
+            4.02,
+            25.66
+          ],
+          [
+            "Lentil Soup",
+            430.0,
+            10.64,
+            25.14
+          ],
+          [
+            "Cappucino Frappe",
+            425.0,
+            4.09,
+            25.26
+          ],
+          [
+            "Dry Fried Kway Teow with Seafood",
+            424.15,
+            8.94,
+            24.93
+          ],
+          [
+            "Cheesy Baked Mussels",
+            409.6,
+            9.78,
+            23.95
+          ],
+          [
+            "Dry Fried Kway Teow with Beef Slice",
+            398.05,
+            8.8,
+            23.39
+          ],
+          [
+            "Vanilla Milkshake",
+            391.0,
+            5.69,
+            23.11
+          ],
+          [
+            "Honeydew",
+            382.0,
+            6.31,
+            22.54
+          ],
+          [
+            "Fried Dumpling",
+            360.0,
+            16.39,
+            20.62
+          ],
+          [
+            "Grilled fish Fillet Hot Plate",
+            344.25,
+            7.87,
+            20.21
+          ],
+          [
+            "Cheesy Baked Rice with Beef",
+            337.35,
+            6.94,
+            19.85
+          ],
+          [
+            "Chocolate",
+            326.4,
+            5.88,
+            19.28
+          ],
+          [
+            "Chicken N Cheese Manqusha",
+            324.0,
+            10.88,
+            18.81
+          ],
+          [
+            "Stir Fried Flat Noodles with Chicken Slices",
+            323.1,
+            10.46,
+            18.8
+          ],
+          [
+            "Kunafa Kishneh With Cream Mix Matcha",
+            323.1,
+            8.35,
+            18.9
+          ],
+          [
+            "Dry Fried Kway Teow with Chicken Slice",
+            322.05,
+            8.57,
+            18.85
+          ],
+          [
+            "Iced Blended Lemon Blue Lagoon",
+            313.25,
+            7.89,
+            18.38
+          ],
+          [
+            "Kunafa Kishneh With Cream Mix Cocoa",
+            305.15,
+            9.61,
+            17.76
+          ],
+          [
+            "Chicken Nuggets",
+            304.0,
+            11.64,
+            17.55
+          ],
+          [
+            "Extra Kabsa Lamb only",
+            295.0,
+            2.63,
+            17.54
+          ],
+          [
+            "Coffee Caramel Frappe",
+            287.5,
+            5.45,
+            16.93
+          ],
+          [
+            "Extra Kabsa Rice",
+            277.0,
+            12.22,
+            15.89
+          ],
+          [
+            "Turkish Coffee",
+            270.3,
+            3.72,
+            16.06
+          ],
+          [
+            "Mutabal",
+            264.0,
+            7.15,
+            15.43
+          ],
+          [
+            "Pumpkin Soup",
+            264.0,
+            10.75,
+            15.2
+          ],
+          [
+            "warm water  1760",
+            263.5,
+            9.39,
+            14.99
+          ],
+          [
+            "Alfredo Pasta",
+            251.3,
+            8.51,
+            14.6
+          ],
+          [
+            "Lemon Snow Ice",
+            246.45,
+            10.15,
+            14.23
+          ],
+          [
+            "Stir Fried Flat Noodles with Beef Slices",
+            241.45,
+            1.28,
+            14.44
+          ],
+          [
+            "Frosty Pin-Orange",
+            234.0,
+            0.91,
+            13.98
+          ],
+          [
+            "Carrot",
+            232.0,
+            7.29,
+            13.49
+          ],
+          [
+            "Yogurt Salad",
+            232.0,
+            5.09,
+            13.61
+          ],
+          [
+            "Fried Chicken Wings (2pcs)",
+            228.0,
+            13.77,
+            12.85
+          ],
+          [
+            "Baklava",
+            225.0,
+            1.51,
+            13.41
+          ],
+          [
+            "Vimto Snow ice",
+            222.6,
+            9.01,
+            12.84
+          ],
+          [
+            "Fruits Salad",
+            220.35,
+            3.06,
+            13.07
+          ],
+          [
+            "Banana Chocolate Milkshake",
+            212.5,
+            6.18,
+            12.37
+          ],
+          [
+            "Dry Fried Kway Teow with Vegetable",
+            209.3,
+            16.55,
+            11.58
+          ],
+          [
+            "Spicy Potato Wedges",
+            208.95,
+            4.94,
+            12.27
+          ],
+          [
+            "Baklava Pieces",
+            206.0,
+            23.82,
+            10.95
+          ],
+          [
+            "Beef n Cheese Manqusha",
+            200.0,
+            26.29,
+            10.43
+          ],
+          [
+            "Fried Chicken Wings (4pcs)",
+            200.0,
+            10.25,
+            11.39
+          ],
+          [
+            "Banana Milk",
+            200.0,
+            2.61,
+            11.84
+          ],
+          [
+            "Spinach Manqusha",
+            192.0,
+            5.25,
+            11.21
+          ],
+          [
+            "Extra bread",
+            188.0,
+            5.02,
+            10.98
+          ],
+          [
+            "Small cream caramel",
+            183.0,
+            0.0,
+            10.98
+          ],
+          [
+            "Fresh Laban",
+            182.0,
+            4.72,
+            10.64
+          ],
+          [
+            "Broccoli Vege Pizza",
+            173.0,
+            7.24,
+            9.95
+          ],
+          [
+            "Brownie Cake with Vanilla Ice-Cream",
+            170.55,
+            5.1,
+            9.94
+          ],
+          [
+            "Kunafa Nabulsia  1 pax",
+            167.65,
+            3.75,
+            9.84
+          ],
+          [
+            "Dragon Fruits",
+            165.0,
+            2.52,
+            9.75
+          ],
+          [
+            "Stir Fried Mee Hoon with Seafood",
+            155.7,
+            1.72,
+            9.25
+          ],
+          [
+            "Kunafa Kishneh With Cream Mix Manggo",
+            151.6,
+            1.93,
+            9.0
+          ],
+          [
+            "Coffee Milk",
+            141.9,
+            1.33,
+            8.49
+          ],
+          [
+            "Apple Sour Plum",
+            135.0,
+            1.09,
+            8.04
+          ],
+          [
+            "Mix Fried Appetizer",
+            135.0,
+            1.18,
+            8.03
+          ],
+          [
+            "Extra Haneeth Lamb only",
+            132.0,
+            0.35,
+            7.9
+          ],
+          [
+            "Banana Split",
+            120.45,
+            2.19,
+            7.13
+          ],
+          [
+            "Wantan Noodles with Dumpling Soup",
+            118.65,
+            4.83,
+            6.84
+          ],
+          [
+            "Stir Fried Wantan Noodles with Seafood",
+            111.8,
+            4.59,
+            6.44
+          ],
+          [
+            "Brownie Cake",
+            111.65,
+            0.0,
+            6.72
+          ],
+          [
+            "Stir Fried Flat Noodles with Seafood",
+            103.8,
+            7.74,
+            5.77
+          ],
+          [
+            "Honey Yogurt Cake",
+            103.6,
+            16.0,
+            5.27
+          ],
+          [
+            "Extra Kabsa Chicken only",
+            101.0,
+            4.32,
+            5.8
+          ],
+          [
+            "Jasmine Green Tea",
+            99.1,
+            0.83,
+            5.92
+          ],
+          [
+            "Cheesy Baked Rice with Fishfillet",
+            95.8,
+            0.95,
+            5.7
+          ],
+          [
+            "Black Pepper Chicken Udon",
+            94.75,
+            5.31,
+            5.38
+          ],
+          [
+            "Blueberry Milkshake",
+            92.0,
+            1.6,
+            5.42
+          ],
+          [
+            "Panna Cotta",
+            90.0,
+            1.39,
+            5.32
+          ],
+          [
+            "Beef Manqusha",
+            90.0,
+            2.37,
+            5.26
+          ],
+          [
+            "Extra Haneeth Chicken only",
+            88.0,
+            3.06,
+            5.1
+          ],
+          [
+            "Extra Mushroom Soup only",
+            86.9,
+            1.86,
+            5.09
+          ],
+          [
+            "Zata&#39;ar Manqusha",
+            84.0,
+            2.58,
+            4.89
+          ],
+          [
+            "Coffee&#39;O",
+            84.0,
+            1.53,
+            4.95
+          ],
+          [
+            "Wantan Noodles with Spring Rolls",
+            74.75,
+            0.27,
+            4.48
+          ],
+          [
+            "English Breakfast",
+            72.45,
+            6.25,
+            3.99
+          ],
+          [
+            "Labna n Zata&#39;ar Manqusha",
+            72.0,
+            0.0,
+            4.32
+          ],
+          [
+            "Iced Blended Lemon Blueberry",
+            71.6,
+            0.0,
+            4.31
+          ],
+          [
+            "Peppermint Tea",
+            71.3,
+            3.27,
+            4.11
+          ],
+          [
+            "Wantan Noodles with Chicken Wings",
+            67.8,
+            9.5,
+            3.51
+          ],
+          [
+            "Cheesy Baked Rice with Seafood",
+            65.9,
+            0.0,
+            3.96
+          ],
+          [
+            "Black Pepper Beefball Udon",
+            62.85,
+            0.8,
+            3.73
+          ],
+          [
+            "Tea o jug",
+            60.0,
+            0.44,
+            3.57
+          ],
+          [
+            "Kunafa Kishneh With Cream Mix Beono",
+            59.85,
+            1.68,
+            3.5
+          ],
+          [
+            "Extra Garlic Bread",
+            57.0,
+            5.28,
+            3.1
+          ],
+          [
+            "Zata&#39;ar veggie rolls",
+            56.0,
+            1.69,
+            3.27
+          ],
+          [
+            "Lychee Snow Ice",
+            53.7,
+            0.94,
+            3.18
+          ],
+          [
+            "Combo (Dragon Fruits Juice + Dargon Fruits Salad)",
+            50.0,
+            2.82,
+            2.83
+          ],
+          [
+            "Chicken Manqusha",
+            48.0,
+            0.49,
+            2.85
+          ],
+          [
+            "Kunafa Kishneh With Cream Mix Strawberry",
+            43.9,
+            3.01,
+            2.46
+          ],
+          [
+            "hot water   1762",
+            42.3,
+            1.85,
+            2.35
+          ],
+          [
+            "Kunafa Kishneh With Cream Mix Biscoff",
+            39.9,
+            0.29,
+            2.38
+          ],
+          [
+            "Cheesy Manqusha",
+            35.0,
+            0.38,
+            2.08
+          ],
+          [
+            "Flavored Scoop Ice cream",
+            34.65,
+            0.25,
+            2.07
+          ],
+          [
+            "Extra Tomato Sauce",
+            33.0,
+            0.69,
+            1.93
+          ],
+          [
+            "Earl Grey Tea",
+            27.9,
+            0.24,
+            1.67
+          ],
+          [
+            "Black Pepper Seafood Udon",
+            26.95,
+            0.0,
+            1.62
+          ],
+          [
+            "Extra Hummus Sauce",
+            24.0,
+            0.45,
+            1.41
+          ],
+          [
+            "Coffee Milkshake",
+            24.0,
+            0.0,
+            1.44
+          ],
+          [
+            "Cheese Cake",
+            23.85,
+            0.0,
+            1.43
+          ],
+          [
+            "Ice cube 1763",
+            21.6,
+            1.35,
+            1.18
+          ],
+          [
+            "Kunafa Kishneh With Cream Mix Blueberry",
+            20.95,
+            0.61,
+            1.22
+          ],
+          [
+            "Pistachio Cake",
+            19.95,
+            0.48,
+            1.17
+          ],
+          [
+            "Chicken Bolognese",
+            17.95,
+            0.0,
+            1.08
+          ],
+          [
+            "Mineral water",
+            16.0,
+            0.0,
+            0.96
+          ],
+          [
+            "Green Tea",
+            13.9,
+            0.0,
+            0.83
+          ],
+          [
+            "Moist Cake",
+            12.95,
+            0.0,
+            0.78
+          ],
+          [
+            "Coffee Ice Cream Frappe",
+            12.5,
+            0.0,
+            0.75
+          ],
+          [
+            "Extra White Sauce",
+            12.0,
+            0.0,
+            0.72
+          ],
+          [
+            "Apple Tangerine",
+            9.0,
+            0.46,
+            0.51
+          ],
+          [
+            "Extra Mushroom Sauce",
+            6.0,
+            0.45,
+            0.33
+          ],
+          [
+            "Extra Black pepper Sauce",
+            6.0,
+            0.16,
+            0.35
+          ],
+          [
+            "Turkish Finger",
+            6.0,
+            1.08,
+            0.3
+          ],
+          [
+            "Discount",
+            0.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "cols": [
+          {
+            "display_name": "item_name",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "item_name",
+              {
+                "base-type": "type/Text"
+              }
+            ],
+            "name": "item_name",
+            "base_type": "type/Text",
+            "effective_type": "type/Text"
+          },
+          {
+            "display_name": "total_sales",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "total_sales",
+              {
+                "base-type": "type/Decimal"
+              }
+            ],
+            "name": "total_sales",
+            "base_type": "type/Decimal",
+            "effective_type": "type/Decimal"
+          },
+          {
+            "display_name": "total_discounts",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "total_discounts",
+              {
+                "base-type": "type/Decimal"
+              }
+            ],
+            "name": "total_discounts",
+            "base_type": "type/Decimal",
+            "effective_type": "type/Decimal"
+          },
+          {
+            "display_name": "total_taxes",
+            "source": "native",
+            "field_ref": [
+              "field",
+              "total_taxes",
+              {
+                "base-type": "type/Decimal"
+              }
+            ],
+            "name": "total_taxes",
+            "base_type": "type/Decimal",
+            "effective_type": "type/Decimal"
+          }
+        ],
+        "native_form": {
+          "query": "WITH products AS (\n    SELECT\n        original_id AS productid,\n        title\n    FROM\n        storehub_mongo.products\n    WHERE\n        business = 'balqis'\n)\nSELECT\n    CASE\n        WHEN i.itemtype = '' THEN prod.title\n        ELSE i.itemtype\n    END AS item_name,\n    SUM(i.subtotal) AS total_sales,\n    SUM(i.discount) AS total_discounts,\n    SUM(i.tax) AS total_taxes\nFROM\n    storehub_mongo.transactionrecords AS tr\n    JOIN storehub_mongo.transactionrecords__items AS i ON i.transactionrecords_foreignkey = tr._id\n    LEFT JOIN products AS prod ON prod.productid = i.productid\nWHERE\n    tr.business = 'balqis'\n    AND tr.createdtime >= DATEADD(hour, -8, DATEADD('month', -1, DATE_TRUNC('month', CURRENT_DATE)))\n    AND tr.createdtime < DATEADD(hour, -8, DATE_TRUNC('month', CURRENT_DATE))\n    AND tr.iscancelled IS NOT TRUE\n    AND tr.transactiontype = 'Sale'\n    AND tr.status NOT IN ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\nGROUP BY\n    1\nORDER BY\n    total_sales DESC;"
+        },
+        "results_timezone": "Asia/Kuala_Lumpur",
+        "requested_timezone": "Asia/Kuala_Lumpur",
+        "results_metadata": {
+          "columns": [
+            {
+              "display_name": "item_name",
+              "field_ref": [
+                "field",
+                "item_name",
+                {
+                  "base-type": "type/Text"
+                }
+              ],
+              "name": "item_name",
+              "base_type": "type/Text",
+              "effective_type": "type/Text",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 217,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Text": {
+                    "percent-json": 0.0,
+                    "percent-url": 0.0,
+                    "percent-email": 0.0,
+                    "percent-state": 0.0,
+                    "average-length": 18.72811059907834
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "total_sales",
+              "field_ref": [
+                "field",
+                "total_sales",
+                {
+                  "base-type": "type/Decimal"
+                }
+              ],
+              "name": "total_sales",
+              "base_type": "type/Decimal",
+              "effective_type": "type/Decimal",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 205,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 0.0,
+                    "q1": 116.54796585531986,
+                    "q3": 1298.459547212981,
+                    "max": 38396.0,
+                    "sd": 4514.054468957142,
+                    "avg": 1699.4447926267283
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "total_discounts",
+              "field_ref": [
+                "field",
+                "total_discounts",
+                {
+                  "base-type": "type/Decimal"
+                }
+              ],
+              "name": "total_discounts",
+              "base_type": "type/Decimal",
+              "effective_type": "type/Decimal",
+              "semantic_type": "type/Discount",
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 199,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 0.0,
+                    "q1": 2.3295303501315514,
+                    "q3": 37.36358578085903,
+                    "max": 1182.06,
+                    "sd": 136.37292129328657,
+                    "avg": 46.601658986175124
+                  }
+                }
+              }
+            },
+            {
+              "display_name": "total_taxes",
+              "field_ref": [
+                "field",
+                "total_taxes",
+                {
+                  "base-type": "type/Decimal"
+                }
+              ],
+              "name": "total_taxes",
+              "base_type": "type/Decimal",
+              "effective_type": "type/Decimal",
+              "semantic_type": null,
+              "fingerprint": {
+                "global": {
+                  "distinct-count": 214,
+                  "nil%": 0.0
+                },
+                "type": {
+                  "type/Number": {
+                    "min": 0.0,
+                    "q1": 6.455935643447183,
+                    "q3": 74.248125,
+                    "max": 2232.82,
+                    "sd": 250.99519880424413,
+                    "avg": 93.22677419354838
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "insights": null
+      },
+      "cached": false,
+      "database_id": 2,
+      "started_at": "2025-07-30T15:58:00.873291Z",
+      "json_query": {
+        "database": 2,
+        "type": "native",
+        "native": {
+          "query": "WITH products AS (\n    SELECT\n        original_id AS productid,\n        title\n    FROM\n        storehub_mongo.products\n    WHERE\n        business = 'balqis'\n)\nSELECT\n    CASE\n        WHEN i.itemtype = '' THEN prod.title\n        ELSE i.itemtype\n    END AS item_name,\n    SUM(i.subtotal) AS total_sales,\n    SUM(i.discount) AS total_discounts,\n    SUM(i.tax) AS total_taxes\nFROM\n    storehub_mongo.transactionrecords AS tr\n    JOIN storehub_mongo.transactionrecords__items AS i ON i.transactionrecords_foreignkey = tr._id\n    LEFT JOIN products AS prod ON prod.productid = i.productid\nWHERE\n    tr.business = 'balqis'\n    AND tr.createdtime >= DATEADD(hour, -8, DATEADD('month', -1, DATE_TRUNC('month', CURRENT_DATE)))\n    AND tr.createdtime < DATEADD(hour, -8, DATE_TRUNC('month', CURRENT_DATE))\n    AND tr.iscancelled IS NOT TRUE\n    AND tr.transactiontype = 'Sale'\n    AND tr.status NOT IN ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\nGROUP BY\n    1\nORDER BY\n    total_sales DESC;"
+        },
+        "middleware": {
+          "js-int-to-string?": true,
+          "add-default-userland-constraints?": true
+        }
+      },
+      "average_execution_time": null,
+      "status": "completed",
+      "context": "ad-hoc",
+      "row_count": 217,
+      "running_time": 8061
+    },
+    "row_count": 217,
+    "query": "WITH products AS (\n    SELECT\n        original_id AS productid,\n        title\n    FROM\n        storehub_mongo.products\n    WHERE\n        business = 'balqis'\n)\nSELECT\n    CASE\n        WHEN i.itemtype = '' THEN prod.title\n        ELSE i.itemtype\n    END AS item_name,\n    SUM(i.subtotal) AS total_sales,\n    SUM(i.discount) AS total_discounts,\n    SUM(i.tax) AS total_taxes\nFROM\n    storehub_mongo.transactionrecords AS tr\n    JOIN storehub_mongo.transactionrecords__items AS i ON i.transactionrecords_foreignkey = tr._id\n    LEFT JOIN products AS prod ON prod.productid = i.productid\nWHERE\n    tr.business = 'balqis'\n    AND tr.createdtime >= DATEADD(hour, -8, DATEADD('month', -1, DATE_TRUNC('month', CURRENT_DATE)))\n    AND tr.createdtime < DATEADD(hour, -8, DATE_TRUNC('month', CURRENT_DATE))\n    AND tr.iscancelled IS NOT TRUE\n    AND tr.transactiontype = 'Sale'\n    AND tr.status NOT IN ('cancelled', 'created', 'failed', 'paymentCancelled', 'pendingPayment', 'pendingVerification')\nGROUP BY\n    1\nORDER BY\n    total_sales DESC;"
+  }
+}

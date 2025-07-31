@@ -1,0 +1,22 @@
+pipeline {
+  agent any
+  stages {
+    stage('Prepare env') {
+      steps {
+        sh 'git submodule update --init'
+        sh 'cp .env.example .env'
+        sh 'yarn install'
+      }
+    }
+    stage('Unit Test') {
+      steps {
+        sh 'yarn run test:coverage'
+      }
+    }
+  }
+  post {
+    always {
+      cleanWs()
+    }
+  }
+}

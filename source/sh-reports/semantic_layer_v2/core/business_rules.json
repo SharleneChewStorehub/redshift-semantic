@@ -1,0 +1,761 @@
+{
+  "version": "2.0.0",
+  "description": "Business rules, constraints, and validation logic for query safety and correctness",
+  "last_updated": "2025-07-09",
+  "mandatory_filters": {
+    "all_queries": {
+      "business_isolation": {
+        "filter": "business = :business_id",
+        "applies_to": "*",
+        "error_if_missing": "CRITICAL: Multi-tenant isolation breach",
+        "implementation_note": "Must be first WHERE condition for index usage"
+      },
+      "soft_delete_exclusion": {
+        "filter": "isdeleted != true OR isdeleted IS NULL",
+        "applies_to": [
+          "transactionrecords",
+          "customers",
+          "products",
+          "businesses__stores"
+        ],
+        "not_applicable_to": [
+          "businesses"
+        ],
+        "default": true,
+        "override_for": [
+          "audit_reports",
+          "data_recovery"
+        ],
+        "note": "businesses table does not have isdeleted column"
+      }
+    },
+    "transaction_queries": {
+      "valid_types_only": {
+        "filter": "type IN ('Sale', 'Return')",
+        "reason": "Exclude voids and test transactions",
+        "exceptions": [
+          "void_analysis_reports"
+        ]
+      },
+      "timestamp_sanity": {
+        "filter": "createdtime <= CURRENT_TIMESTAMP + INTERVAL '1 day'",
+        "reason": "Prevent future-dated transactions",
+        "note": "1-day buffer for timezone differences"
+      }
+    }
+  },
+  "data_quality_rules": {
+    "transaction_integrity": {
+      "return_amounts": {
+        "rule": "type = 'Return' → totalamount < 0",
+        "auto_correction": "Use ABS(amount) * -1",
+        "validation_sql": "CASE WHEN type='Return' AND totalamount >= 0 THEN 'ERROR' END"
+      },
+      "amount_consistency": {
+        "rule": "ABS(totalamount - (subtotal + tax + service_charge - discount)) < 0.01",
+        "tolerance": 0.01,
+        "reason": "Floating point precision"
+      },
+      "non_negative_items": {
+        "rule": "subtotal >= 0 for type='Sale'",
+        "exception": "Adjustments may have negative subtotals"
+      }
+    },
+    "customer_integrity": {
+      "unique_identifier": {
+        "rule": "phone is unique within business",
+        "implementation": "UNIQUE INDEX on (business, phone)"
+      },
+      "points_balance": {
+        "rule": "points >= 0",
+        "error_message": "Loyalty points cannot be negative"
+      },
+      "calculated_fields_sync": {
+        "rule": "totalSpend matches SUM of transactions",
+        "tolerance": 0.01,
+        "reconciliation_frequency": "Real-time"
+      }
+    },
+    "business_logic": {
+      "discount_limits": {
+        "rule": "discount <= subtotal",
+        "exception_handling": "Cap at subtotal if exceeded"
+      },
+      "tax_reasonableness": {
+        "rule": "0 <= (tax/subtotal) <= 0.30",
+        "alert_threshold": 0.25,
+        "reason": "Flag unusual tax rates"
+      },
+      "service_charge_limits": {
+        "rule": "service_charge <= subtotal * 0.20",
+        "regional_variation": {
+          "MY": "Common 10% service charge",
+          "US": "Usually included in tips"
+        }
+      }
+    }
+  },
+  "performance_constraints": {
+    "query_limits": {
+      "interactive_queries": {
+        "max_date_range_days": 90,
+        "max_result_rows": 10000,
+        "timeout_seconds": 30,
+        "recommendation": "Use date filters and pagination"
+      },
+      "export_queries": {
+        "max_date_range_days": 365,
+        "max_result_rows": 1000000,
+        "timeout_seconds": 300,
+        "async_required": true
+      },
+      "dashboard_queries": {
+        "max_date_range_days": 31,
+        "cache_ttl_seconds": 900,
+        "use_materialized_views": true
+      }
+    },
+    "index_requirements": {
+      "mandatory_indexes": [
+        "(business, createdtime)",
+        "(business, customerid)",
+        "(business, storeid, createdtime)"
+      ],
+      "query_hints": {
+        "date_range_queries": "Ensure date filter uses index",
+        "customer_lookups": "Use covering index when possible"
+      }
+    },
+    "resource_protection": {
+      "prevent_full_scans": {
+        "rule": "Queries must have WHERE clause",
+        "minimum_filters": [
+          "business",
+          "date_range OR record_limit"
+        ]
+      },
+      "in_clause_limits": {
+        "max_values": 1000,
+        "alternative": "Use temporary table for large lists"
+      },
+      "join_limits": {
+        "max_tables": 5,
+        "recommendation": "Use CTEs for complex queries"
+      }
+    }
+  },
+  "access_control": {
+    "data_classification": {
+      "public": {
+        "fields": [
+          "category",
+          "store_name",
+          "transaction_date"
+        ],
+        "aggregations": [
+          "daily_totals",
+          "category_sales"
+        ]
+      },
+      "internal": {
+        "fields": [
+          "transaction_details",
+          "product_costs"
+        ],
+        "requires_role": [
+          "manager",
+          "analyst"
+        ]
+      },
+      "sensitive": {
+        "fields": [
+          "customer_phone",
+          "customer_email",
+          "customer_name"
+        ],
+        "requires_permission": "customer_data_access",
+        "audit_logging": true,
+        "masking_option": "partial"
+      },
+      "financial": {
+        "fields": [
+          "totalSpend",
+          "creditBalance",
+          "profit_margin"
+        ],
+        "requires_role": [
+          "finance",
+          "admin"
+        ]
+      }
+    },
+    "row_level_security": {
+      "store_isolation": {
+        "rule": "Users see only assigned stores",
+        "implementation": "AND storeid IN (SELECT store_id FROM user_stores WHERE user_id = :user_id)",
+        "bypass_role": "admin"
+      },
+      "time_restrictions": {
+        "trial_accounts": "Last 30 days only",
+        "basic_tier": "Last 90 days",
+        "premium_tier": "Unlimited"
+      }
+    }
+  },
+  "calculation_standards": {
+    "financial_calculations": {
+      "currency_precision": {
+        "storage": "DECIMAL(19,4)",
+        "display": "2 decimal places",
+        "rounding": "ROUND_HALF_UP"
+      },
+      "net_calculations": {
+        "net_sales": "gross_sales - returns - discounts",
+        "net_profit": "net_sales - costs - expenses",
+        "margin_percentage": "(profit / revenue) * 100"
+      }
+    },
+    "date_calculations": {
+      "timezone_conversion": {
+        "rule": "Always convert UTC to business timezone before date operations",
+        "sql_pattern": "CONVERT_TIMEZONE(business.timezone, '0', timestamp_field)"
+      },
+      "period_boundaries": {
+        "day": "00:00:00 to 23:59:59 in business timezone",
+        "week": "Monday to Sunday (configurable)",
+        "month": "First to last day of calendar month"
+      },
+      "fiscal_periods": {
+        "varies_by": "business.fiscal_year_start",
+        "common_starts": [
+          "January 1",
+          "April 1",
+          "July 1"
+        ]
+      }
+    },
+    "aggregation_rules": {
+      "null_handling": {
+        "sum": "NULL values excluded",
+        "avg": "NULL values excluded from numerator and denominator",
+        "count": "Use COUNT(*) for all rows, COUNT(field) to exclude NULLs"
+      },
+      "distinct_counting": {
+        "customers": "COUNT(DISTINCT customerid)",
+        "transactions": "COUNT(DISTINCT receiptnumber)",
+        "days_active": "COUNT(DISTINCT DATE(createdtime))"
+      }
+    }
+  },
+  "error_handling": {
+    "validation_failures": {
+      "missing_required_filter": {
+        "action": "Reject query",
+        "error_code": "MISSING_REQUIRED_FILTER",
+        "user_message": "Query must include {filter_name}"
+      },
+      "invalid_date_range": {
+        "action": "Suggest correction",
+        "error_code": "INVALID_DATE_RANGE",
+        "user_message": "End date must be after start date"
+      },
+      "permission_denied": {
+        "action": "Return empty result",
+        "error_code": "INSUFFICIENT_PERMISSIONS",
+        "user_message": "You don't have access to this data"
+      }
+    },
+    "runtime_errors": {
+      "timeout": {
+        "action": "Cancel query",
+        "suggestion": "Reduce date range or add more filters"
+      },
+      "out_of_memory": {
+        "action": "Switch to streaming",
+        "suggestion": "Export in smaller batches"
+      },
+      "division_by_zero": {
+        "prevention": "NULLIF(denominator, 0)",
+        "result": "Return NULL instead of error"
+      }
+    }
+  },
+  "default_behaviors": {
+    "when_not_specified": {
+      "date_range": {
+        "default": "last 30 days",
+        "dashboard": "today",
+        "export": "last 90 days"
+      },
+      "sort_order": {
+        "time_series": "date ASC",
+        "rankings": "value DESC",
+        "alphabetical": "name ASC"
+      },
+      "limit": {
+        "interactive": 1000,
+        "export": "no limit",
+        "preview": 10
+      }
+    },
+    "null_display": {
+      "numeric_fields": "0 or blank",
+      "text_fields": "'-' or 'N/A'",
+      "percentages": "blank (not 0%)"
+    }
+  },
+  "validation_rules": {
+    "country_codes": {
+      "field": "country",
+      "rule": "Must be 2-letter ISO code",
+      "valid_values": [
+        "MY",
+        "CN",
+        "TH",
+        "SG",
+        "PH",
+        "KE",
+        "BD"
+      ],
+      "validation": "country IN ('MY', 'CN', 'TH', 'SG', 'PH', 'KE', 'BD')"
+    },
+    "currency_codes": {
+      "field": "currency",
+      "rule": "Must be 3-letter ISO code matching country",
+      "valid_values": [
+        "MYR",
+        "CNY",
+        "THB",
+        "SGD",
+        "PHP",
+        "KES",
+        "BDT",
+        "USD"
+      ],
+      "validation": "currency IN ('MYR', 'CNY', 'THB', 'SGD', 'PHP', 'KES', 'BDT', 'USD')",
+      "country_currency_match": {
+        "MY": "MYR",
+        "CN": "CNY",
+        "TH": "THB",
+        "SG": "SGD",
+        "PH": "PHP",
+        "KE": "KES",
+        "BD": "BDT"
+      }
+    },
+    "business_types": {
+      "field": "businesstype",
+      "rule": "Normalize case variations",
+      "discovered_values": [
+        "retail",
+        "cafe",
+        "restaurant",
+        "Retail",
+        ""
+      ],
+      "normalization": {
+        "retail": "retail",
+        "Retail": "retail",
+        "cafe": "cafe",
+        "restaurant": "restaurant",
+        "": "unspecified"
+      }
+    },
+    "subscription_status": {
+      "field": "subscriptionstatus",
+      "valid_values": [
+        "Active",
+        "Trial",
+        "Expired",
+        ""
+      ],
+      "validation": "subscriptionstatus IN ('Active', 'Trial', 'Expired', '')"
+    },
+    "transaction_type": {
+      "field": "transactiontype",
+      "rule": "Only Sale and Return are valid for reporting",
+      "valid_values": [
+        "Sale",
+        "Return"
+      ],
+      "validation": "transactiontype IN ('Sale', 'Return')"
+    },
+    "price_type": {
+      "field": "pricetype",
+      "valid_values": [
+        "fixed",
+        "variable"
+      ],
+      "validation": "pricetype IN ('fixed', 'variable')",
+      "distribution": {
+        "fixed": "88%",
+        "variable": "12%"
+      }
+    },
+    "id_format": {
+      "pattern": "{business}_{mongoid}",
+      "validation": "ID must match pattern businessname_24charhex",
+      "example": "kamdar_676410f6cdc3700007bbf161",
+      "regex": "^[a-z0-9]+_[a-f0-9]{24}$"
+    },
+    "empty_string_handling": {
+      "rule": "Many optional fields use empty strings instead of NULL",
+      "recommendation": "Check for both NULL and '' in queries",
+      "example_sql": "WHERE (field IS NULL OR field = '')"
+    }
+  },
+  "marketplace_rules": {
+    "platform_identification": {
+      "grab": {
+        "tag_pattern": "tags LIKE '%grab%'",
+        "channel_codes": [
+          "10"
+        ],
+        "product_fields": [
+          "grabfoodprice",
+          "isongrabfood"
+        ]
+      },
+      "shopee": {
+        "tag_pattern": "tags LIKE '%shopee%'",
+        "channel_codes": [
+          "11"
+        ],
+        "product_fields": [
+          "shopeefoodprice",
+          "isonshopeefood"
+        ]
+      },
+      "foodpanda": {
+        "tag_pattern": "tags LIKE '%foodpanda%'",
+        "channel_codes": [
+          "12"
+        ],
+        "product_fields": [
+          "foodpandaprice",
+          "isonfoodpanda"
+        ]
+      },
+      "beep": {
+        "channel_codes": [
+          "13"
+        ],
+        "product_fields": [
+          "isonbeep"
+        ],
+        "store_fields": [
+          "beepbrandname",
+          "beepstorenamelocationsuffix"
+        ]
+      }
+    },
+    "tag_format": {
+      "pattern": "comma-separated lowercase",
+      "example": "grab,shopee",
+      "api_tag": "auto-tag"
+    }
+  },
+  "payment_validation_rules": {
+    "payment_option_types": {
+      "valid_types": ["custom", "qrCode", "NFC"],
+      "validation": "type IN ('custom', 'qrCode', 'NFC')",
+      "requirements": {
+        "qrCode": {
+          "requires": "businesses__qrorderingsettings must exist",
+          "validation": "IF type='qrCode' THEN EXISTS(qrorderingsettings)"
+        },
+        "NFC": {
+          "requires": "NFC-enabled hardware",
+          "rare": true,
+          "percentage": "1%"
+        }
+      }
+    },
+    "payment_channel_correlation": {
+      "QR_payments": {
+        "channels": ["3"],
+        "payment_types": ["qrCode"],
+        "rule": "QR Order channel typically uses QR payment"
+      },
+      "marketplace_payments": {
+        "channels": ["10", "11", "12", "13"],
+        "handled_by": "platform",
+        "note": "Payment processed by marketplace"
+      }
+    }
+  },
+  
+  "tax_validation_rules": {
+    "tax_codes_by_country": {
+      "MY": {
+        "valid_codes": ["SR", "ZR", "TX"],
+        "default": "SR",
+        "description": "Service Tax regime"
+      },
+      "PH": {
+        "valid_codes": ["BIR", "VAT", "ZR", "TX"],
+        "default": "VAT",
+        "description": "BIR and VAT system"
+      },
+      "TH": {
+        "valid_codes": ["VAT", "ZR", "TX"],
+        "default": "VAT",
+        "rate": 0.07
+      },
+      "SG": {
+        "valid_codes": ["GST", "ZR", "TX"],
+        "default": "GST",
+        "rate": 0.08
+      }
+    },
+    "tax_calculation_rules": {
+      "inclusive_countries": ["MY", "SG", "TH", "PH"],
+      "exclusive_countries": ["US"],
+      "zero_rated_items": {
+        "codes": ["ZR", "TX"],
+        "rate": 0,
+        "description": "No tax applied"
+      }
+    }
+  },
+  
+  "employee_access_rules": {
+    "access_hierarchy": {
+      "levels": [
+        {"role": "manageraccess", "level": 3, "includes": ["backoffice", "cashier", "reports"]},
+        {"role": "backofficeaccess", "level": 2, "includes": ["inventory", "customers", "products"]},
+        {"role": "limitbackofficeaccess", "level": 1.5, "includes": ["limited_reports", "view_only"]},
+        {"role": "cashieraccess", "level": 1, "includes": ["pos_operations"]}
+      ],
+      "rule": "Higher level includes all lower level permissions"
+    },
+    "store_access_validation": {
+      "accessallstores": {
+        "rule": "Can access any store in the business",
+        "overrides": "assignedstores"
+      },
+      "assignedstores": {
+        "rule": "Must be in assignedstores list",
+        "validation": "storeid IN (SELECT store FROM assignedstores)"
+      },
+      "default": "If no access defined, deny all"
+    }
+  },
+  
+  "promotion_rules": {
+    "promotion_types": {
+      "merchant": {
+        "scope": "business",
+        "percentage": "99%",
+        "validation": "business_id must match"
+      },
+      "universal": {
+        "scope": "platform",
+        "percentage": "1%",
+        "managed_by": "storehub",
+        "validation": "applies to all businesses"
+      }
+    },
+    "promotion_application": {
+      "stacking": "Multiple promotions may apply",
+      "priority": "Universal promotions apply first",
+      "validation": "Total discount cannot exceed subtotal"
+    }
+  },
+  
+  "loyalty_program_rules": {
+    "point_consistency": {
+      "rule": "Loyalty points amount must match event type",
+      "validation": "CASE WHEN eventtype = 'earned' THEN amount > 0 WHEN eventtype IN ('expired', 'expense') THEN amount < 0 END",
+      "error_message": "Loyalty point amount sign must match event type"
+    },
+    "customer_validation": {
+      "rule": "Customer must exist in customers table",
+      "validation": "customerid IN (SELECT customerid FROM customers WHERE isdeleted != true)",
+      "error_message": "Invalid customer ID in loyalty transaction"
+    },
+    "transaction_linking": {
+      "rule": "Receipt number must exist when source is REGISTER",
+      "validation": "IF source = 'REGISTER' AND receiptnumber != '' THEN receiptnumber IN (SELECT receiptnumber FROM transactionrecords)",
+      "error_message": "Receipt number not found in transaction records"
+    },
+    "point_expiration": {
+      "rule": "Points expire after configured period",
+      "default_period": "365 days",
+      "validation": "eventtime <= CURRENT_TIMESTAMP"
+    }
+  },
+  
+  "payment_gateway_rules": {
+    "fee_consistency": {
+      "rule": "Gateway fee should be negative (cost to merchant)",
+      "validation": "fee <= 0",
+      "tolerance": "Small positive values (<0.01) may be acceptable for adjustments"
+    },
+    "net_calculation": {
+      "rule": "Net amount should equal transaction amount minus fee",
+      "validation": "ABS(net - (transactionamount + fee)) < 0.01",
+      "tolerance": 0.01,
+      "reason": "Floating point precision"
+    },
+    "settlement_timing": {
+      "rule": "Settlement time should be after creation time",
+      "validation": "settlementtime >= createdtime",
+      "error_message": "Settlement cannot occur before transaction creation"
+    },
+    "gateway_validation": {
+      "valid_gateways": ["stripe", "offline"],
+      "rule": "Payment gateway must be from approved list",
+      "validation": "paymentgateway IN ('stripe', 'offline')"
+    }
+  },
+  
+  "shipping_rules": {
+    "zone_completeness": {
+      "rule": "Shipping zone must have either postcodes or states defined",
+      "validation": "(postcodes IS NOT NULL AND postcodes != '') OR (states IS NOT NULL AND states != '')",
+      "error_message": "Shipping zone must define coverage area"
+    },
+    "country_consistency": {
+      "rule": "Country code must match covered countries",
+      "validation": "country IN ('MY', 'SG', 'TH', 'PH', 'CN', 'KE', 'BD')",
+      "error_message": "Invalid country code for shipping zone"
+    },
+    "distance_validation": {
+      "rule": "Distance must be positive for distance-based shipping",
+      "validation": "distance IS NULL OR distance > 0",
+      "error_message": "Distance must be positive"
+    }
+  },
+  
+  "inventory_rules": {
+    "stock_take_timing": {
+      "rule": "Complete time must be after start time",
+      "validation": "completetime IS NULL OR completetime >= starttime",
+      "error_message": "Stock take completion cannot precede start time"
+    },
+    "quantity_variance": {
+      "rule": "Total quantity difference should be reasonable",
+      "validation": "ABS(totalqtydiff) <= 10000",
+      "alert_threshold": 1000,
+      "reason": "Flag unusually large variances for review"
+    },
+    "cost_variance_correlation": {
+      "rule": "Cost variance should correlate with quantity variance",
+      "validation": "(totalqtydiff = 0 AND totalcostdiff = 0) OR (totalqtydiff != 0 AND totalcostdiff != 0)",
+      "tolerance": "Small rounding differences acceptable"
+    }
+  },
+  
+  "feedback_rules": {
+    "reporter_validation": {
+      "rule": "Reporter type must be valid",
+      "validation": "reportertype IN ('consumer', 'merchant', 'support')",
+      "error_message": "Invalid reporter type"
+    },
+    "reason_code_validation": {
+      "rule": "Reason code must be from approved list",
+      "validation": "reasoncode IN ('others', 'delivery_issue', 'quality_issue', 'service_issue')",
+      "error_message": "Invalid reason code"
+    },
+    "logistics_provider_consistency": {
+      "rule": "Logistics provider should be specified for delivery issues",
+      "validation": "reasoncode != 'delivery_issue' OR (logisticsprovider IS NOT NULL AND logisticsprovider != '')",
+      "error_message": "Logistics provider required for delivery issues"
+    }
+  },
+  
+  "campaign_rules": {
+    "segment_filter_consistency": {
+      "rule": "Campaign segments must have valid filter references",
+      "validation": "EXISTS(SELECT 1 FROM campaignsegments__nestedsource__filters WHERE campaignsegments_id = _id)",
+      "error_message": "Campaign segment missing filter configuration"
+    },
+    "date_range_validation": {
+      "rule": "Campaign end date must be after start date",
+      "validation": "enddate IS NULL OR enddate >= startdate",
+      "error_message": "Campaign end date cannot precede start date"
+    }
+  },
+  
+  "regional_rules": {
+    "malaysia": {
+      "country_code": "MY",
+      "currency": "MYR",
+      "tax_fields": [
+        "gstid",
+        "sstid"
+      ],
+      "business_registration": "brn",
+      "timezone": "Asia/Kuala_Lumpur"
+    },
+    "philippines": {
+      "country_code": "PH",
+      "currency": "PHP",
+      "special_flags": [
+        "isbasicnecessitiesph",
+        "issoloparentdiscountapplicable"
+      ],
+      "timezone": "Asia/Manila"
+    },
+    "thailand": {
+      "country_code": "TH",
+      "currency": "THB",
+      "timezone": "Asia/Bangkok",
+      "unicode_support": "Thai characters in product names"
+    },
+    "china": {
+      "country_code": "CN",
+      "currency": "CNY",
+      "timezone": "Asia/Shanghai",
+      "unicode_support": "Chinese characters in all text fields"
+    }
+  },
+
+  "table_specific_constraints": {
+    "businesses": {
+      "deletion_handling": {
+        "has_isdeleted": false,
+        "note": "businesses table does not have isdeleted column - use subscriptionstatus instead",
+        "active_filter": "subscriptionstatus != 'Expired' OR subscriptionstatus IS NULL"
+      },
+      "required_fields": ["_id", "name", "country"],
+      "unique_constraints": ["name"],
+      "subscription_statuses": ["Active", "Trial", "Expired", ""],
+      "mrr_calculation": {
+        "field": "mrr",
+        "arr_formula": "mrr * 12",
+        "currency_field": "currency"
+      }
+    },
+    "businesses__stores": {
+      "deletion_handling": {
+        "has_isdeleted": true,
+        "filter": "(isdeleted IS NULL OR isdeleted != true)"
+      },
+      "foreign_key": "businesses_foreignkey",
+      "relationship": "many-to-one with businesses._id"
+    },
+    "products": {
+      "deletion_handling": {
+        "has_isdeleted": true,
+        "filter": "(isdeleted IS NULL OR isdeleted != true)"
+      },
+      "business_isolation": "business field must match :business_id"
+    },
+    "transactionrecords": {
+      "deletion_handling": {
+        "has_isdeleted": true,
+        "filter": "(isdeleted IS NULL OR isdeleted != true)"
+      },
+      "business_isolation": "business field must match :business_id"
+    },
+    "customers": {
+      "deletion_handling": {
+        "has_isdeleted": true,
+        "filter": "(isdeleted IS NULL OR isdeleted != true)"
+      },
+      "business_isolation": "business field must match :business_id"
+    }
+  }
+}

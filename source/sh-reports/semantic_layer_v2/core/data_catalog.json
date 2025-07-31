@@ -1,0 +1,1528 @@
+{
+  "version": "2.0.0",
+  "description": "Authoritative mapping of business concepts to physical database objects",
+  "last_updated": "2025-07-09",
+  "business_entities": {
+    "loyalty_program_management": {
+      "description": "Comprehensive loyalty points system with 54.5M loyalty transactions",
+      "primary_table": "loyaltychangelogs",
+      "related_tables": ["promotioncustomers", "promotionclaimcounts", "customers"],
+      "key_metrics": {
+        "total_loyalty_transactions": {
+          "definition": "All loyalty point transactions",
+          "aggregation": "COUNT(*)",
+          "volume": "54.5 million records",
+          "coverage": "Earned, expired, spent, and cancelled points"
+        },
+        "points_earned": {
+          "definition": "Total loyalty points earned by customers",
+          "calculation": "SUM(amount) WHERE eventtype = 'earned'",
+          "sql": "SELECT SUM(amount) FROM loyaltychangelogs WHERE eventtype = 'earned'"
+        },
+        "points_expired": {
+          "definition": "Total loyalty points expired",
+          "calculation": "SUM(ABS(amount)) WHERE eventtype = 'expired'",
+          "sql": "SELECT SUM(ABS(amount)) FROM loyaltychangelogs WHERE eventtype = 'expired'"
+        },
+        "active_loyalty_customers": {
+          "definition": "Customers with loyalty activity",
+          "aggregation": "COUNT(DISTINCT customerid)",
+          "filter": "eventtime >= CURRENT_DATE - INTERVAL '90 days'"
+        }
+      },
+      "event_types": {
+        "earned": "Points earned from purchases",
+        "expired": "Points expired due to time limit",
+        "expense": "Points spent on rewards",
+        "return": "Points adjusted for returns",
+        "transactionCancelled": "Points reversed for cancelled transactions",
+        "paymentCancelled_freezeRefund": "Points frozen for payment issues"
+      },
+      "sources": {
+        "REGISTER": "In-store POS transactions",
+        "QR_ORDERING": "QR code self-service orders",
+        "RECEIPT": "Receipt-based loyalty claims"
+      },
+      "reward_types": {
+        "cashback": "Cash-equivalent rewards",
+        "points": "Traditional points system"
+      },
+      "use_cases": [
+        "Customer retention analysis",
+        "Loyalty program ROI measurement",
+        "Points expiration management",
+        "Customer segmentation by loyalty activity",
+        "Reward redemption patterns"
+      ]
+    },
+    
+    "payment_gateway_operations": {
+      "description": "Payment processing and settlement tracking - 10.2M gateway records",
+      "primary_table": "gatewayrecords",
+      "related_tables": ["paymentrecords", "batchpayouts", "paymentsettlements__orders"],
+      "key_metrics": {
+        "total_gateway_transactions": {
+          "definition": "All payment gateway transactions",
+          "aggregation": "COUNT(*)",
+          "volume": "10.2 million records"
+        },
+        "gateway_fee_total": {
+          "definition": "Total payment processing fees",
+          "calculation": "SUM(ABS(fee))",
+          "sql": "SELECT SUM(ABS(fee)) FROM gatewayrecords"
+        },
+        "net_settlement_amount": {
+          "definition": "Net amount after gateway fees",
+          "calculation": "SUM(net)",
+          "sql": "SELECT SUM(net) FROM gatewayrecords"
+        },
+        "gateway_success_rate": {
+          "definition": "Percentage of successful transactions",
+          "calculation": "COUNT(*) WHERE transferstatus = 'success' / COUNT(*)",
+          "sql": "SELECT COUNT(*) FILTER (WHERE transferstatus = 'success') * 100.0 / COUNT(*) FROM gatewayrecords"
+        }
+      },
+      "payment_gateways": {
+        "stripe": "Stripe International payment processor",
+        "offline": "Manual/offline payment processing"
+      },
+      "transaction_types": {
+        "payment": "Standard payment transaction",
+        "refund": "Refund transaction",
+        "chargeback": "Disputed transaction"
+      },
+      "transfer_statuses": {
+        "success": "Successfully processed",
+        "pending": "Awaiting processing",
+        "failed": "Transaction failed"
+      },
+      "use_cases": [
+        "Payment processing cost analysis",
+        "Gateway performance monitoring",
+        "Settlement reconciliation",
+        "Fee optimization",
+        "Transaction success rate tracking"
+      ]
+    },
+    
+    "shipping_and_logistics": {
+      "description": "Comprehensive shipping zones and delivery management - 31K zones, 1M+ delivery records",
+      "primary_table": "shippingzones",
+      "related_tables": ["shippingzones__deliverymethods", "logisticsjoblogs", "logisticslogs", "transactionrecords__deliveryinformation"],
+      "key_metrics": {
+        "total_shipping_zones": {
+          "definition": "All configured shipping zones",
+          "aggregation": "COUNT(*)",
+          "volume": "31,304 zones"
+        },
+        "delivery_success_rate": {
+          "definition": "Percentage of successful deliveries",
+          "calculation": "COUNT(*) WHERE status = 'delivered' / COUNT(*)",
+          "source_table": "logisticsjoblogs"
+        },
+        "average_delivery_time": {
+          "definition": "Time from order to delivery",
+          "calculation": "AVG(DATEDIFF(deliverytime, createtime))",
+          "source_table": "logisticsjoblogs"
+        },
+        "shipping_cost_analysis": {
+          "definition": "Cost breakdown by delivery method",
+          "source_table": "shippingzones__deliverymethods__ratecalculation"
+        }
+      },
+      "shipping_types": {
+        "domestic": "Within-country delivery",
+        "international": "Cross-border delivery"
+      },
+      "logistics_providers": {
+        "pandago": "Foodpanda delivery service",
+        "grabexpress": "Grab delivery service",
+        "internal": "In-house delivery team"
+      },
+      "use_cases": [
+        "Delivery zone optimization",
+        "Shipping cost analysis",
+        "Logistics performance monitoring",
+        "Delivery time optimization",
+        "Regional expansion planning"
+      ]
+    },
+    
+    "inventory_management": {
+      "description": "Stock taking and inventory control - 1.1M stock take records",
+      "primary_table": "stocktakes",
+      "related_tables": ["stocktakeitems", "stockreturns", "inventories"],
+      "key_metrics": {
+        "total_stock_takes": {
+          "definition": "All stock take operations",
+          "aggregation": "COUNT(*)",
+          "volume": "1.1 million records"
+        },
+        "inventory_variance": {
+          "definition": "Difference between counted and system inventory",
+          "calculation": "SUM(totalqtydiff)",
+          "sql": "SELECT SUM(totalqtydiff) FROM stocktakes"
+        },
+        "cost_variance": {
+          "definition": "Financial impact of inventory differences",
+          "calculation": "SUM(totalcostdiff)",
+          "sql": "SELECT SUM(totalcostdiff) FROM stocktakes"
+        },
+        "stock_take_completion_rate": {
+          "definition": "Percentage of completed stock takes",
+          "calculation": "COUNT(*) WHERE status = 'completed' / COUNT(*)"
+        }
+      },
+      "statuses": {
+        "open": "Stock take in progress",
+        "completed": "Stock take finished",
+        "cancelled": "Stock take cancelled"
+      },
+      "use_cases": [
+        "Inventory accuracy monitoring",
+        "Stock loss analysis",
+        "Audit trail management",
+        "Cost variance tracking",
+        "Operational efficiency measurement"
+      ]
+    },
+    
+    "feedback_and_reviews": {
+      "description": "Customer feedback and review system - 34K feedback records, 7.5K reviews",
+      "primary_table": "feedbacks",
+      "related_tables": ["reviewinfos", "transactionrecords__review"],
+      "key_metrics": {
+        "total_feedback": {
+          "definition": "All customer feedback submissions",
+          "aggregation": "COUNT(*)",
+          "volume": "34,291 records"
+        },
+        "feedback_resolution_rate": {
+          "definition": "Percentage of resolved feedback",
+          "calculation": "COUNT(*) WHERE status = 1 / COUNT(*)",
+          "note": "Status 1 indicates resolved"
+        },
+        "average_review_rating": {
+          "definition": "Average customer review score",
+          "calculation": "AVG(rating)",
+          "source_table": "reviewinfos"
+        }
+      },
+      "reason_codes": {
+        "others": "General feedback",
+        "delivery_issue": "Delivery problems",
+        "quality_issue": "Product quality concerns",
+        "service_issue": "Service quality problems"
+      },
+      "reporter_types": {
+        "consumer": "End customer feedback",
+        "merchant": "Business owner feedback",
+        "support": "Support team feedback"
+      },
+      "use_cases": [
+        "Customer satisfaction monitoring",
+        "Service quality improvement",
+        "Issue resolution tracking",
+        "Merchant performance evaluation",
+        "Support team effectiveness"
+      ]
+    },
+    
+    "marketing_and_campaigns": {
+      "description": "Advanced marketing segmentation and campaign management - 19K segments, 25K filters",
+      "primary_table": "campaignsegments",
+      "related_tables": ["campaignsegments__nestedsource", "campaignsegments__nestedsource__filters", "marketingtags", "searchingtags"],
+      "key_metrics": {
+        "total_campaign_segments": {
+          "definition": "All marketing segments",
+          "aggregation": "COUNT(*)",
+          "volume": "19,326 segments"
+        },
+        "segment_targeting_complexity": {
+          "definition": "Average filters per segment",
+          "calculation": "COUNT(filters) / COUNT(segments)",
+          "note": "Indicates campaign sophistication"
+        },
+        "tag_usage_frequency": {
+          "definition": "Most used marketing tags",
+          "aggregation": "COUNT(*) GROUP BY tag",
+          "source_table": "marketingtags"
+        }
+      },
+      "use_cases": [
+        "Customer segmentation",
+        "Targeted campaign creation",
+        "Marketing effectiveness measurement",
+        "Personalization optimization",
+        "Campaign performance analysis"
+      ]
+    },
+    
+    "geographic_intelligence": {
+      "description": "Location-based transaction and business analytics - 19.1M geo-tagged transactions",
+      "primary_table": "transactionrecords__location",
+      "related_tables": ["transactionrecords", "businesses__stores__location"],
+      "key_metrics": {
+        "total_geo_transactions": {
+          "definition": "Transactions with geographic coordinates",
+          "aggregation": "COUNT(*)",
+          "volume": "19.1 million records",
+          "coverage": "Global multi-country data"
+        },
+        "geographic_revenue": {
+          "definition": "Revenue by geographic region",
+          "calculation": "JOIN location data with transaction amounts",
+          "sql": "SELECT coordinates, SUM(t.totalamount) FROM transactionrecords__location l JOIN transactionrecords t ON l.transactionrecords_foreignkey = t._id"
+        },
+        "location_density": {
+          "definition": "Transaction concentration by area",
+          "aggregation": "COUNT(*) per geographic zone"
+        }
+      },
+      "geographic_regions": {
+        "china": "Longitude ~121.3, Latitude ~31.2 (Shanghai region)",
+        "philippines": "Longitude ~121.0, Latitude ~14.5 (Manila region)",
+        "southeast_asia": "Multiple country coverage with precise coordinates"
+      },
+      "use_cases": [
+        "Geographic sales performance analysis",
+        "Market penetration mapping",
+        "Location-based customer behavior",
+        "Regional expansion planning",
+        "Store catchment area analysis"
+      ]
+    },
+    
+    "financial_operations": {
+      "description": "Detailed payout, commission, and cost analytics - 18.4M records",
+      "primary_table": "payoutitems__storehubdetails", 
+      "related_tables": ["payoutitems", "batchpayouts"],
+      "key_metrics": {
+        "total_logistics_cost": {
+          "definition": "Total StoreHub logistics costs",
+          "field": "storehublogisticscost",
+          "aggregation": "SUM(ABS(storehublogisticscost))",
+          "typical_range": "64.0 to 11.0 (negative values)"
+        },
+        "total_logistics_revenue": {
+          "definition": "Total StoreHub logistics revenue",
+          "field": "storehublogisticsrevenue", 
+          "aggregation": "SUM(storehublogisticsrevenue)",
+          "typical_range": "10.5 to 15.0"
+        },
+        "net_logistics_margin": {
+          "definition": "Net logistics profit/loss per transaction",
+          "calculation": "storehublogisticsrevenue - ABS(storehublogisticscost)",
+          "sql": "SELECT (storehublogisticsrevenue - ABS(storehublogisticscost)) as net_margin"
+        },
+        "payment_gateway_analysis": {
+          "definition": "Payment processing cost analysis",
+          "fields": ["paymentgatewaycost", "paymentgatewayrevenue"],
+          "note": "Limited data in test environment"
+        }
+      },
+      "financial_insights": {
+        "commission_structure": "Detailed breakdown of all fees and revenues per transaction",
+        "cost_optimization": "18.4 million records for cost analysis and optimization",
+        "revenue_streams": "Separate tracking of logistics and payment processing revenues"
+      },
+      "use_cases": [
+        "Commission structure optimization",
+        "Cost center analysis and reduction",
+        "Revenue stream breakdown and forecasting",
+        "Merchant payout accuracy verification",
+        "Financial modeling and planning"
+      ]
+    },
+    
+    "sales": {
+      "description": "Revenue-generating transactions",
+      "primary_table": "transactionrecords",
+      "key_metrics": {
+        "gross_sales": {
+          "definition": "Total sales before any deductions",
+          "source_field": "subtotal",
+          "filter": "type = 'Sale'",
+          "aggregation": "SUM",
+          "sql": "SUM(subtotal) WHERE type = 'Sale'"
+        },
+        "net_sales": {
+          "definition": "Sales after returns and discounts",
+          "calculation": "gross_sales - returns - discounts",
+          "sql_components": {
+            "gross": "SUM(CASE WHEN type='Sale' THEN subtotal ELSE 0 END)",
+            "returns": "SUM(CASE WHEN type='Return' THEN ABS(subtotal) ELSE 0 END)",
+            "discounts": "SUM(CASE WHEN type='Sale' THEN discount ELSE 0 END)"
+          },
+          "sql": "SUM(CASE WHEN type='Sale' THEN subtotal-discount WHEN type='Return' THEN -ABS(subtotal) ELSE 0 END)"
+        },
+        "transaction_count": {
+          "definition": "Number of sales transactions",
+          "aggregation": "COUNT(DISTINCT receiptnumber)",
+          "filter": "type = 'Sale'"
+        },
+        "average_transaction_value": {
+          "definition": "Average sale amount per transaction",
+          "calculation": "total_sales / transaction_count",
+          "sql": "SUM(totalamount) / COUNT(DISTINCT receiptnumber) WHERE type = 'Sale'"
+        }
+      },
+      "dimensions": {
+        "time": {
+          "field": "createdtime",
+          "type": "timestamp",
+          "timezone_handling": "Stored in UTC, convert to business timezone"
+        },
+        "location": {
+          "field": "storeid",
+          "join": "businesses__stores ON storeid = _id",
+          "display": "businesses__stores.name"
+        },
+        "channel": {
+          "field": "channel",
+          "mapping": {
+            "0": "POS",
+            "1": "Online",
+            "3": "QR Order",
+            "10": "GrabFood",
+            "11": "ShopeeFood",
+            "12": "FoodPanda",
+            "13": "Beep"
+          }
+        },
+        "transaction_type": {
+          "field": "type",
+          "values": [
+            "Sale",
+            "Return"
+          ]
+        }
+      },
+      "pre_aggregated_sources": {
+        "real_time": {
+          "endpoint": "dashboard",
+          "latency": "15 minutes",
+          "use_when": "Current day metrics needed"
+        },
+        "historical": {
+          "endpoint": "transformations_sales",
+          "optimized_for": "Date ranges > 7 days",
+          "available_scopes": [
+            "default",
+            "by_channel",
+            "by_product"
+          ]
+        }
+      }
+    },
+    "customers": {
+      "description": "Customer profiles and behavior",
+      "primary_table": "customers",
+      "key_metrics": {
+        "total_customers": {
+          "definition": "All registered customers",
+          "aggregation": "COUNT(*)",
+          "filter": "isdeleted != true"
+        },
+        "active_customers": {
+          "definition": "Customers with recent purchases",
+          "aggregation": "COUNT(*)",
+          "filter": "lastTransactionTime >= CURRENT_DATE - INTERVAL '90 days'"
+        },
+        "new_customers": {
+          "definition": "First-time customers in period",
+          "source_field": "createdtime",
+          "aggregation": "COUNT(*)",
+          "filter": "createdtime BETWEEN ? AND ?"
+        },
+        "customer_lifetime_value": {
+          "definition": "Total customer spend",
+          "pre_calculated_field": "totalSpend",
+          "manual_calculation": "SUM(transactionrecords.totalamount) GROUP BY customerid"
+        },
+        "average_purchase_frequency": {
+          "definition": "Transactions per customer",
+          "pre_calculated": "transactionCount",
+          "calculation": "transactionCount / months_since_first_purchase"
+        }
+      },
+      "dimensions": {
+        "segments": {
+          "vip": "totalSpend > 10000",
+          "regular": "transactionCount >= 2",
+          "at_risk": "DATEDIFF(day, lastTransactionTime, CURRENT_DATE) > 180",
+          "new": "createdtime >= CURRENT_DATE - INTERVAL '30 days'"
+        },
+        "attributes": {
+          "has_email": "email IS NOT NULL",
+          "has_phone": "phone IS NOT NULL",
+          "is_member": "points > 0"
+        }
+      },
+      "advanced_filtering": {
+        "endpoint": "count_customers",
+        "supports": "Complex multi-attribute filtering",
+        "use_when": "Need combination of product, date, and customer filters"
+      }
+    },
+    "products": {
+      "description": "Product catalog and performance",
+      "primary_table": "products",
+      "transaction_link": "transaction_items",
+      "related_tables": ["products__pricebooks"],
+      "key_metrics": {
+        "units_sold": {
+          "source": "transaction_items.quantity",
+          "aggregation": "SUM"
+        },
+        "revenue": {
+          "source": "transaction_items.amount",
+          "aggregation": "SUM"
+        },
+        "unique_products_sold": {
+          "aggregation": "COUNT(DISTINCT productid)"
+        },
+        "products_with_pricebooks": {
+          "definition": "Products using dynamic pricing",
+          "source": "products__pricebooks",
+          "aggregation": "COUNT(DISTINCT productid)"
+        }
+      },
+      "dimensions": {
+        "price_type": {
+          "field": "pricetype",
+          "values": [
+            "fixed",
+            "variable"
+          ],
+          "distribution": {
+            "fixed": "88%",
+            "variable": "12%"
+          }
+        },
+        "pricing_strategy": {
+          "standard": "No pricebook association",
+          "multi_tier": "Has pricebook entries",
+          "dynamic": "Multiple pricebook entries"
+        },
+        "marketplace_integration": {
+          "field": "tags",
+          "common_values": [
+            "grab,shopee",
+            "auto-tag",
+            ""
+          ],
+          "platforms": [
+            "grab",
+            "shopee",
+            "foodpanda",
+            "beep"
+          ]
+        },
+        "category": {
+          "field": "category",
+          "sample_values": [
+            "api-new+category",
+            "Women&#39;s Apparel",
+            "with.it",
+            "Blouse",
+            "Dress",
+            ""
+          ],
+          "note": "Mix of API-generated and user-defined categories"
+        }
+      },
+      "join_pattern": "transactionrecords → transaction_items (on receiptnumber) → products (on productid)",
+      "pricing_relationship": "products → products__pricebooks → pricebooks"
+    },
+    "loyalty": {
+      "description": "Customer loyalty program",
+      "primary_table": "loyaltychangelogs",
+      "summary_table": "customers",
+      "key_metrics": {
+        "points_balance": {
+          "pre_calculated": "customers.points",
+          "calculation": "SUM(earned) - SUM(redeemed)"
+        },
+        "points_earned": {
+          "filter": "eventtype = 'earned'",
+          "aggregation": "SUM(amount)"
+        },
+        "points_redeemed": {
+          "filter": "eventtype IN ('expense', 'expense_freeze')",
+          "aggregation": "SUM(amount)"
+        },
+        "total_members": {
+          "source": "customers",
+          "filter": "points > 0 OR membershipTier IS NOT NULL"
+        }
+      }
+    },
+    "businesses": {
+      "description": "Merchant business profiles",
+      "primary_table": "businesses",
+      "dimensions": {
+        "business_type": {
+          "field": "businesstype",
+          "values": [
+            "retail",
+            "cafe",
+            "restaurant",
+            "Retail",
+            ""
+          ],
+          "normalized_values": {
+            "retail": "retail",
+            "Retail": "retail",
+            "cafe": "cafe",
+            "restaurant": "restaurant",
+            "": "unspecified"
+          }
+        },
+        "country": {
+          "field": "country",
+          "type": "ISO 3166-1 alpha-2",
+          "discovered_values": [
+            "MY",
+            "CN",
+            "TH",
+            "SG",
+            "PH",
+            "KE",
+            "BD"
+          ],
+          "mapping": {
+            "MY": "Malaysia",
+            "CN": "China",
+            "TH": "Thailand",
+            "SG": "Singapore",
+            "PH": "Philippines",
+            "KE": "Kenya",
+            "BD": "Bangladesh"
+          }
+        },
+        "currency": {
+          "field": "currency",
+          "type": "ISO 4217",
+          "discovered_values": [
+            "MYR",
+            "CNY",
+            "THB",
+            "SGD",
+            "PHP",
+            "KES",
+            "BDT"
+          ],
+          "country_mapping": {
+            "MY": "MYR",
+            "CN": "CNY",
+            "TH": "THB",
+            "SG": "SGD",
+            "PH": "PHP",
+            "KE": "KES",
+            "BD": "BDT"
+          }
+        },
+        "subscription_status": {
+          "field": "subscriptionstatus",
+          "values": [
+            "Active",
+            "Trial",
+            "Expired",
+            ""
+          ],
+          "mapping": {
+            "Active": "Active Subscription",
+            "Trial": "Trial Period",
+            "Expired": "Subscription Expired",
+            "": "No Subscription"
+          }
+        }
+      }
+    },
+    "payment_methods": {
+      "description": "Payment configuration and transaction methods",
+      "primary_table": "businesses__paymentoptions",
+      "transaction_table": "transactionrecords__payments",
+      "key_metrics": {
+        "payment_method_count": {
+          "definition": "Number of configured payment methods",
+          "aggregation": "COUNT(*)",
+          "filter": "isdeleted \\!= true"
+        },
+        "payment_volume": {
+          "definition": "Total payment amount by method",
+          "source": "transactionrecords__payments.amount",
+          "aggregation": "SUM"
+        },
+        "payment_frequency": {
+          "definition": "Number of transactions by payment method",
+          "aggregation": "COUNT(*)",
+          "groupby": "paymentmethodname"
+        }
+      },
+      "dimensions": {
+        "payment_type": {
+          "field": "type",
+          "values": [
+            "custom",
+            "qrCode",
+            "NFC"
+          ],
+          "distribution": {
+            "custom": "91%",
+            "qrCode": "8%",
+            "NFC": "1%"
+          }
+        },
+        "payment_method_name": {
+          "field": "paymentmethodname",
+          "source": "transactionrecords__payments",
+          "description": "Actual payment method used"
+        },
+        "store_scope": {
+          "field": "stores",
+          "values": [
+            "All",
+            "specific_store_ids"
+          ],
+          "description": "Which stores accept this payment"
+        }
+      }
+    },
+    "tax_management": {
+      "description": "Tax codes and regional tax handling",
+      "primary_table": "businesses__taxcodes",
+      "key_metrics": {
+        "tax_collected": {
+          "definition": "Total tax amount collected",
+          "source": "transactionrecords.tax",
+          "aggregation": "SUM",
+          "filter": "type = \"Sale\""
+        },
+        "effective_tax_rate": {
+          "definition": "Average tax rate applied",
+          "calculation": "SUM(tax) / SUM(subtotal) * 100"
+        }
+      },
+      "dimensions": {
+        "tax_code": {
+          "field": "taxcode",
+          "values": [
+            "SR",
+            "VAT",
+            "BIR",
+            "TX",
+            "ZR"
+          ],
+          "regional_mapping": {
+            "MY": [
+              "SR",
+              "ZR",
+              "TX"
+            ],
+            "PH": [
+              "BIR",
+              "VAT",
+              "ZR"
+            ],
+            "TH": [
+              "VAT",
+              "ZR"
+            ],
+            "SG": [
+              "GST",
+              "ZR"
+            ]
+          }
+        },
+        "tax_rate": {
+          "field": "rate",
+          "type": "percentage",
+          "common_values": [
+            0,
+            6,
+            7,
+            10,
+            12
+          ]
+        }
+      }
+    },
+    "employee_operations": {
+      "description": "Employee management and access control",
+      "primary_table": "employees",
+      "related_tables": [
+        "employees__devices"
+      ],
+      "key_metrics": {
+        "active_employees": {
+          "definition": "Currently active employees",
+          "aggregation": "COUNT(*)",
+          "filter": "isdeleted \\!= true"
+        },
+        "employees_by_role": {
+          "definition": "Employee count by access level",
+          "aggregation": "COUNT(*)",
+          "groupby": "CASE WHEN manageraccess THEN \"manager\" WHEN backofficeaccess THEN \"backoffice\" WHEN cashieraccess THEN \"cashier\" END"
+        },
+        "registered_devices": {
+          "definition": "Employees with registered mobile devices",
+          "aggregation": "COUNT(DISTINCT employees_foreignkey)",
+          "source": "employees__devices"
+        }
+      },
+      "dimensions": {
+        "access_levels": {
+          "fields": [
+            "manageraccess",
+            "cashieraccess",
+            "backofficeaccess",
+            "limitbackofficeaccess"
+          ],
+          "hierarchy": "manager > backoffice > cashier",
+          "multi_level": "Employees can have multiple access types"
+        },
+        "store_access": {
+          "all_stores": "accessallstores = true",
+          "specific_stores": "assignedstores array",
+          "validation": "Must have at least one store assigned"
+        },
+        "employee_identifier": {
+          "field": "employeenumber",
+          "unique_within": "business",
+          "used_for": "POS login"
+        },
+        "device_platforms": {
+          "source": "employees__devices",
+          "field": "platform",
+          "values": ["android", "ios"],
+          "description": "Mobile platforms used by employees"
+        },
+        "push_notification_services": {
+          "source": "employees__devices",
+          "field": "pushplatform",
+          "values": ["FCM", "HMS", "IOS"],
+          "description": "Push notification services (FCM=Firebase, HMS=Huawei, IOS=Apple)"
+        }
+      }
+    },
+    "promotions": {
+      "description": "Discount and promotion management",
+      "primary_table": "promotions",
+      "applied_table": "transactionrecords__promotions",
+      "conditions_table": "promotions__conditions",
+      "key_metrics": {
+        "active_promotions": {
+          "definition": "Currently active promotions",
+          "filter": "startdate <= CURRENT_DATE AND enddate >= CURRENT_DATE"
+        },
+        "promotion_usage": {
+          "definition": "Times promotion was applied",
+          "source": "transactionrecords__promotions",
+          "aggregation": "COUNT(*)"
+        },
+        "discount_given": {
+          "definition": "Total discount amount from promotions",
+          "source": "transactionrecords__promotions.discountamount",
+          "aggregation": "SUM"
+        }
+      },
+      "dimensions": {
+        "promotion_type": {
+          "field": "type",
+          "values": [
+            "merchant",
+            "universal"
+          ],
+          "distribution": {
+            "merchant": "99%",
+            "universal": "1%"
+          }
+        },
+        "discount_type": {
+          "field": "discounttype",
+          "values": [
+            "percentage",
+            "fixed_amount",
+            "buy_x_get_y"
+          ]
+        },
+        "scope": {
+          "merchant": "Business-specific promotion",
+          "universal": "Platform-wide promotion"
+        },
+        "condition_entity": {
+          "field": "promotions__conditions.entity",
+          "values": ["business", "transaction", "product", "customer"]
+        },
+        "condition_operator": {
+          "field": "promotions__conditions.operator",
+          "values": ["in", "gte", "contains", "eq"]
+        }
+      },
+      "complex_fields": {
+        "rules": "42 fields defining promotion logic",
+        "conditions": "Product, category, time-based restrictions"
+      }
+    },
+    
+    "order_management": {
+      "description": "Complete order lifecycle tracking",
+      "primary_table": "orderlogs",
+      "key_metrics": {
+        "order_count": {
+          "definition": "Number of unique orders",
+          "aggregation": "COUNT(DISTINCT receiptnumber)"
+        },
+        "order_status_changes": {
+          "definition": "Number of status change events",
+          "aggregation": "COUNT(*)",
+          "filter": "type = 'status_updated'"
+        },
+        "avg_delivery_time": {
+          "definition": "Average time from confirmed to delivered",
+          "calculation": "Time difference between statuses"
+        }
+      },
+      "dimensions": {
+        "order_status": {
+          "field": "status",
+          "values": [
+            "pendingPayment",
+            "paid",
+            "accepted",
+            "confirmed",
+            "logisticsConfirmed",
+            "pickedUp",
+            "delivered",
+            "cancelled"
+          ],
+          "lifecycle": "pendingPayment → paid → accepted → confirmed → logisticsConfirmed → pickedUp → delivered"
+        },
+        "event_operator": {
+          "field": "operator",
+          "values": ["system", "customer"],
+          "description": "Who triggered the status change"
+        }
+      },
+      "join_pattern": "orderlogs → transactionrecords (on receiptnumber)"
+    },
+    
+    "inventory_management": {
+      "description": "Stock level tracking and management",
+      "primary_table": "inventories",
+      "related_tables": ["stocktakeitems", "stockreturns", "stocktransfers"],
+      "key_metrics": {
+        "current_stock": {
+          "definition": "Current quantity on hand",
+          "source": "quantityonhand",
+          "aggregation": "SUM"
+        },
+        "low_stock_items": {
+          "definition": "Items below restock level",
+          "filter": "quantityonhand <= restocklevel",
+          "aggregation": "COUNT(*)"
+        },
+        "stock_value": {
+          "definition": "Total inventory value",
+          "calculation": "quantityonhand * product_cost"
+        },
+        "stock_accuracy": {
+          "definition": "Physical count vs system count",
+          "source": "stocktakeitems",
+          "calculation": "Variance analysis"
+        }
+      },
+      "dimensions": {
+        "stock_status": {
+          "overstocked": "quantityonhand > desiredstocklevel * 1.5",
+          "normal": "restocklevel < quantityonhand <= desiredstocklevel",
+          "low": "quantityonhand <= restocklevel",
+          "out_of_stock": "quantityonhand = 0"
+        },
+        "return_status": {
+          "field": "stockreturns.status",
+          "values": ["open", "completed"]
+        }
+      }
+    },
+    
+    "financial_reconciliation": {
+      "description": "Payment processing and payout management",
+      "primary_table": "payoutitems",
+      "related_tables": ["paymentrecords"],
+      "key_metrics": {
+        "pending_payouts": {
+          "definition": "Payouts awaiting processing",
+          "filter": "payoutstatus = 'pending'",
+          "aggregation": "SUM(amount)"
+        },
+        "completed_payouts": {
+          "definition": "Successfully processed payouts",
+          "filter": "payoutstatus = 'completed'",
+          "aggregation": "SUM(amount)"
+        },
+        "reconciliation_rate": {
+          "definition": "Percentage of reconciled transactions",
+          "calculation": "COUNT(reconciliationstatus='passed') / COUNT(*) * 100"
+        }
+      },
+      "dimensions": {
+        "payout_status": {
+          "field": "payoutstatus",
+          "values": ["pending", "completed"]
+        },
+        "reconciliation_status": {
+          "field": "reconciliationstatus",
+          "values": ["pending", "passed"]
+        },
+        "payment_gateway": {
+          "field": "gatewayname",
+          "values": ["StripeInternational", "Offline"]
+        }
+      }
+    },
+    
+    "voucher_management": {
+      "description": "Voucher creation and redemption tracking",
+      "primary_table": "vouchers",
+      "key_metrics": {
+        "active_vouchers": {
+          "definition": "Currently redeemable vouchers",
+          "filter": "status = 'unused' AND expirydate > CURRENT_DATE",
+          "aggregation": "COUNT(*)"
+        },
+        "voucher_value": {
+          "definition": "Total value of outstanding vouchers",
+          "filter": "status = 'unused'",
+          "aggregation": "SUM(value)"
+        },
+        "redemption_rate": {
+          "definition": "Percentage of vouchers redeemed",
+          "calculation": "COUNT(status='used') / COUNT(*) * 100"
+        }
+      },
+      "dimensions": {
+        "voucher_status": {
+          "field": "status",
+          "values": ["unused", "used", "expired"]
+        },
+        "purchase_channel": {
+          "field": "purchasechannel",
+          "values": ["systemRefund", "cleverTapWebhook"],
+          "types": {
+            "systemRefund": "Automatic refund vouchers",
+            "cleverTapWebhook": "Marketing campaign vouchers"
+          }
+        }
+      }
+    },
+    
+    "marketing_communications": {
+      "description": "Customer messaging and campaign management",
+      "primary_table": "campaigns",
+      "related_tables": ["messages", "consumers", "campaignjobs"],
+      "key_metrics": {
+        "campaign_count": {
+          "definition": "Number of campaigns run",
+          "aggregation": "COUNT(*)"
+        },
+        "campaign_jobs_executed": {
+          "definition": "Campaign execution jobs",
+          "source": "campaignjobs",
+          "aggregation": "COUNT(*)"
+        },
+        "message_delivery_rate": {
+          "definition": "Percentage of messages delivered",
+          "source": "messages",
+          "calculation": "COUNT(status='delivered') / COUNT(*) * 100"
+        },
+        "active_consumers": {
+          "definition": "Consumers opted in for marketing",
+          "source": "consumers",
+          "aggregation": "COUNT(DISTINCT phone)"
+        }
+      },
+      "dimensions": {
+        "campaign_channel": {
+          "field": "channel",
+          "values": ["SMS"],
+          "description": "Communication channel"
+        },
+        "message_status": {
+          "field": "messages.status",
+          "values": ["delivered", "pending", "failed"]
+        },
+        "campaign_status": {
+          "field": "status",
+          "values": ["FINISHED"]
+        },
+        "job_status": {
+          "field": "campaignjobs.status",
+          "values": ["completed", "failed", "pending", "processing"],
+          "description": "Campaign execution status"
+        }
+      }
+    },
+    
+    "supplier_management": {
+      "description": "Supplier relationships and procurement",
+      "primary_table": "suppliers",
+      "key_metrics": {
+        "total_suppliers": {
+          "definition": "Number of suppliers",
+          "aggregation": "COUNT(*)",
+          "filter": "isdeleted != true"
+        },
+        "active_suppliers": {
+          "definition": "Suppliers with recent activity",
+          "aggregation": "COUNT(*)",
+          "filter": "lastorderdate >= CURRENT_DATE - INTERVAL '90 days'"
+        },
+        "suppliers_by_product": {
+          "definition": "Number of suppliers per product",
+          "aggregation": "COUNT(DISTINCT supplierid)",
+          "groupby": "productid"
+        }
+      },
+      "dimensions": {
+        "supplier_status": {
+          "active": "lastorderdate >= CURRENT_DATE - INTERVAL '90 days'",
+          "inactive": "lastorderdate < CURRENT_DATE - INTERVAL '90 days'",
+          "new": "createdtime >= CURRENT_DATE - INTERVAL '30 days'"
+        },
+        "location": {
+          "field": "country",
+          "type": "supplier location"
+        }
+      },
+      "relationships": {
+        "to_products": "Via product cost management",
+        "to_purchase_orders": "Via purchase order lines"
+      }
+    },
+    
+    "pos_operations": {
+      "description": "Point of Sale terminal management",
+      "primary_table": "businesses__cashregisters",
+      "key_metrics": {
+        "active_terminals": {
+          "definition": "Number of active POS terminals",
+          "aggregation": "COUNT(*)",
+          "filter": "isdeleted != true AND status = 'active'"
+        },
+        "terminals_by_store": {
+          "definition": "POS terminals per store",
+          "aggregation": "COUNT(*)",
+          "groupby": "storeid"
+        },
+        "push_enabled_terminals": {
+          "definition": "Terminals with push notifications",
+          "aggregation": "COUNT(*)",
+          "filter": "pushnotificationsenabled = true"
+        }
+      },
+      "dimensions": {
+        "device_info": {
+          "field": "businesses__cashregisters__device",
+          "subfields": ["devicename", "systemversion", "appversion"]
+        },
+        "notification_status": {
+          "field": "pushnotificationsenabled",
+          "values": [true, false]
+        },
+        "compliance": {
+          "bir_registered": "birregistered = true",
+          "accreditation": "biraccreditationnumber IS NOT NULL"
+        }
+      },
+      "operational_metrics": {
+        "last_activity": "lastactive timestamp",
+        "registration_date": "createdtime",
+        "device_lifecycle": "Track device age and replacement needs"
+      }
+    },
+    
+    "audit_and_compliance": {
+      "description": "System audit logs and compliance tracking",
+      "primary_table": "useractionlogs",
+      "related_tables": ["employees", "businesses"],
+      "key_metrics": {
+        "total_actions": {
+          "definition": "Total support actions taken",
+          "aggregation": "COUNT(*)",
+          "filter": "isdeleted != true"
+        },
+        "cancelled_transactions": {
+          "definition": "Number of cancelled online transactions",
+          "aggregation": "COUNT(*)",
+          "filter": "action = 'cancel_OnlineTransaction'"
+        },
+        "subscription_changes": {
+          "definition": "Number of subscription status changes",
+          "aggregation": "COUNT(*)",
+          "filter": "action = 'update_subscription_status'"
+        },
+        "support_staff_activity": {
+          "definition": "Actions by support staff member",
+          "aggregation": "COUNT(*)",
+          "group_by": "user"
+        }
+      },
+      "dimensions": {
+        "action_type": {
+          "field": "action",
+          "values": ["cancel_OnlineTransaction", "update_subscription_status"]
+        },
+        "support_staff": {
+          "field": "user",
+          "values": ["cathy.li@storehub.com", "leykwan.choo@storehub.com", "alex.toh@storehub.com", "grace.choong@storehub.com"]
+        },
+        "source_system": {
+          "field": "source",
+          "values": ["support-tool"]
+        }
+      },
+      "relationships": {
+        "business_relation": "useractionlogs.business = businesses.business",
+        "time_dimension": "useractionlogs.time for temporal analysis"
+      },
+      "data_quality": {
+        "required_fields": ["user", "action", "time", "source"],
+        "json_fields": ["notes", "additionalinfo"],
+        "audit_trail": "Complete audit trail with timestamps and user identification"
+      }
+    },
+    
+    "omnichannel_commerce": {
+      "description": "Online store and digital channel configuration",
+      "primary_table": "onlinestoreinfos",
+      "related_tables": ["businesses__qrorderingsettings"],
+      "key_metrics": {
+        "online_stores_count": {
+          "definition": "Number of online stores",
+          "aggregation": "COUNT(*)",
+          "filter": "isdeleted != true"
+        },
+        "active_online_stores": {
+          "definition": "Stores with recent activity",
+          "aggregation": "COUNT(*)",
+          "filter": "status = 'active' AND lastorderdate >= CURRENT_DATE - INTERVAL '30 days'"
+        },
+        "qr_enabled_businesses": {
+          "definition": "Businesses with QR ordering",
+          "source": "businesses__qrorderingsettings",
+          "aggregation": "COUNT(DISTINCT business)"
+        },
+        "social_media_integration": {
+          "definition": "Stores with social media links",
+          "aggregation": "COUNT(*)",
+          "filter": "socialmediainfo IS NOT NULL"
+        }
+      },
+      "dimensions": {
+        "store_status": {
+          "field": "status",
+          "values": ["active", "suspended", "pending"]
+        },
+        "theme": {
+          "field": "theme",
+          "description": "Store design theme"
+        },
+        "delivery_options": {
+          "self_pickup": "selfpickup = true",
+          "delivery": "delivery = true"
+        },
+        "payment_integration": {
+          "online_payments": "onlinepaymentoptions IS NOT NULL",
+          "offline_payments": "offlinepaymentinstructions IS NOT NULL"
+        }
+      },
+      "features": {
+        "qr_ordering": "QR code table ordering",
+        "social_commerce": "Facebook/Instagram integration",
+        "multi_language": "Language support",
+        "custom_domain": "Custom domain configuration"
+      }
+    }
+  },
+  "table_definitions": {
+    "transactionrecords": {
+      "description": "Core transaction table for all sales and returns",
+      "record_count": "~100M+",
+      "key_fields": {
+        "receiptnumber": {
+          "type": "string",
+          "description": "Unique transaction identifier",
+          "format": "YYYYMMDD-STOREID-SEQUENCE"
+        },
+        "createdtime": {
+          "type": "timestamp",
+          "description": "Transaction timestamp in UTC",
+          "index": true
+        },
+        "business": {
+          "type": "string",
+          "description": "Tenant identifier",
+          "required": true,
+          "index": true
+        },
+        "customerid": {
+          "type": "ObjectId",
+          "description": "Link to customer profile",
+          "nullable": true
+        },
+        "totalamount": {
+          "type": "decimal",
+          "description": "Final amount after all calculations"
+        },
+        "subtotal": {
+          "type": "decimal",
+          "description": "Item total before tax/discount"
+        },
+        "tax": {
+          "type": "decimal",
+          "description": "Tax amount"
+        },
+        "discount": {
+          "type": "decimal",
+          "description": "Discount amount"
+        },
+        "type": {
+          "type": "enum",
+          "values": [
+            "Sale",
+            "Return",
+            "Void"
+          ]
+        },
+        "isdeleted": {
+          "type": "boolean",
+          "description": "Soft delete flag",
+          "default": false
+        }
+      }
+    },
+    "customers": {
+      "description": "Customer profiles with pre-calculated metrics",
+      "key_fields": {
+        "_id": {
+          "type": "ObjectId",
+          "description": "Unique customer ID"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Primary identifier",
+          "unique_within": "business"
+        },
+        "totalSpend": {
+          "type": "decimal",
+          "description": "Pre-calculated lifetime value",
+          "updated": "Real-time"
+        },
+        "transactionCount": {
+          "type": "integer",
+          "description": "Number of purchases",
+          "updated": "Real-time"
+        },
+        "points": {
+          "type": "integer",
+          "description": "Current loyalty balance"
+        },
+        "lastTransactionTime": {
+          "type": "timestamp",
+          "description": "Most recent purchase"
+        }
+      }
+    },
+    "transaction_items": {
+      "description": "Line items for each transaction",
+      "parent": "transactionrecords",
+      "key_fields": {
+        "transactionid": {
+          "type": "string",
+          "description": "Links to receiptnumber"
+        },
+        "productid": {
+          "type": "ObjectId",
+          "description": "Links to products"
+        },
+        "quantity": {
+          "type": "integer"
+        },
+        "amount": {
+          "type": "decimal",
+          "description": "Line total"
+        }
+      }
+    },
+    "businesses__stores": {
+      "description": "Store locations",
+      "key_fields": {
+        "_id": {
+          "type": "ObjectId"
+        },
+        "name": {
+          "type": "string",
+          "description": "Store display name"
+        },
+        "timezone": {
+          "type": "string",
+          "description": "IANA timezone for reporting"
+        },
+        "businesses_foreignkey": {
+          "type": "ObjectId",
+          "description": "Links to parent business"
+        }
+      }
+    },
+    "transactionrecords__location": {
+      "description": "Geographic location data for transactions - 19.1M records",
+      "high_volume": true,
+      "key_fields": {
+        "_id": {
+          "type": "ObjectId"
+        },
+        "type": {
+          "type": "string",
+          "description": "PostGIS geometry type",
+          "enum": ["Point"]
+        },
+        "coordinates": {
+          "type": "string", 
+          "description": "Longitude,Latitude coordinates",
+          "format": "decimal degrees",
+          "examples": ["121.3888425,31.2243684", "121.01971492280246,14.5562744140625"]
+        },
+        "transactionrecords_foreignkey": {
+          "type": "ObjectId",
+          "description": "Links to parent transaction"
+        }
+      },
+      "geographic_coverage": {
+        "china": "121.3,31.2 region",
+        "philippines": "121.0,14.5 region", 
+        "global": "Multiple countries covered"
+      }
+    },
+    "payoutitems__storehubdetails": {
+      "description": "Detailed commission and cost breakdown - 18.4M records",
+      "high_volume": true,
+      "key_fields": {
+        "_id": {
+          "type": "ObjectId"
+        },
+        "storehublogisticscost": {
+          "type": "decimal",
+          "description": "Logistics cost (typically negative)",
+          "examples": [-64.0, -20.0, -11.0]
+        },
+        "storehublogisticsrevenue": {
+          "type": "decimal",
+          "description": "Logistics revenue for StoreHub",
+          "examples": [15.0, 10.5]
+        },
+        "paymentgatewaycost": {
+          "type": "decimal",
+          "description": "Payment processing cost",
+          "note": "Often NULL in test data"
+        },
+        "paymentgatewayrevenue": {
+          "type": "decimal", 
+          "description": "Payment processing revenue",
+          "note": "Often NULL in test data"
+        },
+        "payoutitems_foreignkey": {
+          "type": "ObjectId",
+          "description": "Links to parent payout item"
+        }
+      },
+      "financial_insights": {
+        "commission_structure": "Detailed breakdown of all fees and revenues",
+        "cost_analysis": "Logistics and payment processing costs tracked",
+        "volume": "18.4 million detailed records available"
+      }
+    },
+    "transactionrecords__loyaltydiscounts": {
+      "description": "Loyalty program discount applications - 1,955 records",
+      "key_fields": {
+        "_id": {
+          "type": "ObjectId"
+        },
+        "transactionrecords_foreignkey": {
+          "type": "ObjectId",
+          "description": "Links to parent transaction"
+        }
+      },
+      "business_insight": "Limited but active loyalty program usage"
+    },
+    "transactionrecords__returnprocess": {
+      "description": "Return workflow management - 580 records",
+      "related_tables": ["transactionrecords__returnprocess__selectedoptions"],
+      "key_fields": {
+        "_id": {
+          "type": "ObjectId"
+        },
+        "transactionrecords_foreignkey": {
+          "type": "ObjectId",
+          "description": "Links to parent transaction"
+        }
+      },
+      "business_insight": "Comprehensive return tracking with 433 option selections"
+    }
+  },
+  "relationship_map": {
+    "transaction_to_customer": {
+      "from": "transactionrecords.customerid",
+      "to": "customers._id",
+      "type": "many-to-one",
+      "nullable": true
+    },
+    "transaction_to_store": {
+      "from": "transactionrecords.storeid",
+      "to": "businesses__stores._id",
+      "type": "many-to-one"
+    },
+    "transaction_to_items": {
+      "from": "transactionrecords.receiptnumber",
+      "to": "transaction_items.transactionid",
+      "type": "one-to-many"
+    },
+    "items_to_products": {
+      "from": "transaction_items.productid",
+      "to": "products._id",
+      "type": "many-to-one"
+    },
+    "loyalty_to_customer": {
+      "from": "loyaltychangelogs.customerid",
+      "to": "customers._id",
+      "type": "many-to-one"
+    }
+  },
+  "data_quality_patterns": {
+    "null_handling": {
+      "pattern": "Most optional fields use empty strings instead of NULL",
+      "exceptions": [
+        "Numeric fields use proper NULL"
+      ]
+    },
+    "id_format": {
+      "pattern": "{business}_{mongoid}",
+      "example": "kamdar_676410f6cdc3700007bbf161",
+      "mongoid_length": 24
+    },
+    "foreign_keys": {
+      "pattern": "Use _foreignkey suffix",
+      "example": "transactionrecords_foreignkey"
+    },
+    "encoding": {
+      "unicode_support": true,
+      "common_cases": [
+        "Thai text in product names",
+        "Chinese characters",
+        "HTML entities"
+      ]
+    }
+  }
+}

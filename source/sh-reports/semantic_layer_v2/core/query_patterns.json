@@ -1,0 +1,240 @@
+{
+  "version": "2.0.0",
+  "description": "Reusable, tested SQL query patterns for common analytical needs",
+  "last_updated": "2025-07-08",
+  "core_patterns": {
+    "time_series_aggregation": {
+      "purpose": "Aggregate metrics over time periods",
+      "template": "SELECT DATE_TRUNC(:period, CONVERT_TIMEZONE(:timezone, '0', createdtime)) as period, :aggregations FROM :table WHERE business = :business_id AND createdtime BETWEEN :start_date AND :end_date :additional_filters GROUP BY 1 ORDER BY 1",
+      "parameters": {
+        "period": "day|week|month|quarter|year",
+        "timezone": "Business timezone from settings",
+        "aggregations": "SUM(amount), COUNT(*), etc.",
+        "additional_filters": "AND type = 'Sale', etc."
+      },
+      "variations": {
+        "with_comparison": "Add LAG(metric, 1) OVER (ORDER BY period) for previous period",
+        "with_running_total": "Add SUM(metric) OVER (ORDER BY period) for cumulative"
+      },
+      "performance_notes": "Use materialized daily_summary for periods > 90 days ago"
+    },
+    "period_over_period_comparison": {
+      "purpose": "Compare metrics between two time periods",
+      "template": "WITH current_period AS ( SELECT :metrics FROM :table WHERE business = :business_id AND createdtime BETWEEN :current_start AND :current_end :filters ), previous_period AS ( SELECT :metrics FROM :table WHERE business = :business_id AND createdtime BETWEEN :previous_start AND :previous_end :filters ) SELECT current.*, previous.*, ROUND(((current.:primary_metric - previous.:primary_metric) / NULLIF(previous.:primary_metric, 0)) * 100, 2) as percent_change FROM current_period current CROSS JOIN previous_period previous",
+      "use_cases": [
+        "MoM growth",
+        "YoY comparison",
+        "Week over week"
+      ],
+      "parameters": {
+        "metrics": "Comma-separated aggregations",
+        "primary_metric": "Main metric for % calculation"
+      }
+    },
+    "top_n_ranking": {
+      "purpose": "Find top performing entities",
+      "template": "SELECT :entity, :metrics, RANK() OVER (ORDER BY :sort_metric DESC) as rank FROM :table :joins WHERE business = :business_id :filters GROUP BY :entity ORDER BY :sort_metric DESC LIMIT :n",
+      "use_cases": [
+        "Top products",
+        "Best customers",
+        "Highest revenue stores"
+      ],
+      "optimization": "Ensure index on sort_metric field"
+    },
+    "customer_segmentation": {
+      "purpose": "Segment customers by behavior",
+      "template": "WITH customer_metrics AS ( SELECT customerid, MAX(createdtime) as last_purchase, COUNT(DISTINCT receiptnumber) as frequency, SUM(totalamount) as monetary FROM transactionrecords WHERE business = :business_id AND type = 'Sale' AND createdtime >= :start_date GROUP BY 1 ) SELECT *, CASE WHEN last_purchase >= CURRENT_DATE - INTERVAL '30 days' AND frequency >= 5 AND monetary >= 1000 THEN 'VIP' WHEN last_purchase >= CURRENT_DATE - INTERVAL '90 days' AND frequency >= 2 THEN 'Regular' WHEN last_purchase < CURRENT_DATE - INTERVAL '180 days' THEN 'At Risk' ELSE 'New' END as segment FROM customer_metrics",
+      "variations": {
+        "rfm_scoring": "Add NTILE(5) for R, F, M scores",
+        "cohort_based": "Group by DATE_TRUNC('month', first_purchase)"
+      }
+    },
+    "product_affinity": {
+      "purpose": "Find products frequently bought together",
+      "template": "WITH basket_pairs AS ( SELECT ti1.productid as product1, ti2.productid as product2, COUNT(DISTINCT t.receiptnumber) as times_together FROM transactionrecords t JOIN transaction_items ti1 ON t.receiptnumber = ti1.transactionid JOIN transaction_items ti2 ON t.receiptnumber = ti2.transactionid WHERE t.business = :business_id AND t.type = 'Sale' AND ti1.productid < ti2.productid AND t.createdtime BETWEEN :start_date AND :end_date GROUP BY 1, 2 HAVING COUNT(DISTINCT t.receiptnumber) >= :min_frequency ) SELECT p1.name as product1_name, p2.name as product2_name, times_together FROM basket_pairs JOIN products p1 ON product1 = p1._id JOIN products p2 ON product2 = p2._id ORDER BY times_together DESC",
+      "parameters": {
+        "min_frequency": "Minimum co-occurrences (e.g., 5)"
+      }
+    }
+  },
+  "advanced_patterns": {
+    "cohort_retention": {
+      "purpose": "Track customer retention by cohort",
+      "template": "WITH cohorts AS ( SELECT customerid, DATE_TRUNC('month', MIN(createdtime)) as cohort_month FROM transactionrecords WHERE business = :business_id AND type = 'Sale' GROUP BY 1 ), cohort_activity AS ( SELECT c.cohort_month, DATE_TRUNC('month', t.createdtime) as activity_month, COUNT(DISTINCT c.customerid) as customers FROM cohorts c JOIN transactionrecords t ON c.customerid = t.customerid WHERE t.business = :business_id AND t.type = 'Sale' GROUP BY 1, 2 ) SELECT cohort_month, activity_month, customers, DATEDIFF('month', cohort_month, activity_month) as months_since_acquisition FROM cohort_activity ORDER BY 1, 2"
+    },
+    "moving_averages": {
+      "purpose": "Smooth out daily fluctuations",
+      "template": "WITH daily_sales AS ( SELECT DATE_TRUNC('day', createdtime) as date, :metric as daily_value FROM :table WHERE business = :business_id :filters GROUP BY 1 ) SELECT date, daily_value, AVG(daily_value) OVER ( ORDER BY date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW ) as moving_avg_7d, AVG(daily_value) OVER ( ORDER BY date ROWS BETWEEN 29 PRECEDING AND CURRENT ROW ) as moving_avg_30d FROM daily_sales ORDER BY date"
+    },
+    "abc_analysis": {
+      "purpose": "Classify items by value contribution",
+      "template": "WITH product_revenue AS ( SELECT productid, SUM(amount) as revenue, SUM(SUM(amount)) OVER () as total_revenue FROM transaction_items ti JOIN transactionrecords t ON ti.transactionid = t.receiptnumber WHERE t.business = :business_id AND t.type = 'Sale' AND t.createdtime BETWEEN :start_date AND :end_date GROUP BY 1 ), cumulative AS ( SELECT *, SUM(revenue) OVER (ORDER BY revenue DESC) as cumulative_revenue, (SUM(revenue) OVER (ORDER BY revenue DESC) / total_revenue) as cumulative_percent FROM product_revenue ) SELECT productid, revenue, CASE WHEN cumulative_percent <= 0.80 THEN 'A' WHEN cumulative_percent <= 0.95 THEN 'B' ELSE 'C' END as abc_class FROM cumulative"
+    }
+  },
+  "optimization_patterns": {
+    "pre_aggregation_check": {
+      "purpose": "Determine if pre-aggregated source available",
+      "logic": "IF date_range > 7 days ago AND grouping = standard THEN use transformations ELSE use raw tables"
+    },
+    "pagination_pattern": {
+      "purpose": "Handle large result sets",
+      "template": "WITH numbered_results AS ( SELECT *, ROW_NUMBER() OVER (ORDER BY :order_by) as rn FROM (:base_query) base ) SELECT * FROM numbered_results WHERE rn BETWEEN :offset + 1 AND :offset + :limit"
+    },
+    "index_friendly_filters": {
+      "purpose": "Ensure queries use indexes",
+      "rules": [
+        "Put business filter first",
+        "Use date range on indexed timestamp",
+        "Avoid functions on indexed columns"
+      ]
+    }
+  },
+  "composition_rules": {
+    "combining_patterns": {
+      "description": "Patterns can be nested and combined",
+      "example": "Use customer_segmentation output as input to time_series_aggregation"
+    },
+    "cte_structure": {
+      "recommended_order": [
+        "Data filtering CTEs first",
+        "Aggregation CTEs second",
+        "Calculation CTEs third",
+        "Final SELECT with formatting"
+      ]
+    },
+    "performance_hierarchy": {
+      "fastest": "Pre-aggregated endpoints (dashboard, transformations)",
+      "fast": "Indexed raw table queries with good filters",
+      "slow": "Complex joins without date filters",
+      "avoid": "Full table scans, non-indexed searches"
+    }
+  },
+  "multi_channel_patterns": {
+    "channel_performance_analysis": {
+      "purpose": "Compare sales performance across different channels",
+      "template": "\nSELECT \n    CASE channel\n        WHEN '0' THEN 'POS'\n        WHEN '1' THEN 'Online Store'\n        WHEN '3' THEN 'QR Order'\n        WHEN '10' THEN 'GrabFood'\n        WHEN '11' THEN 'ShopeeFood'\n        WHEN '12' THEN 'FoodPanda'\n        WHEN '13' THEN 'Beep'\n        ELSE 'Other'\n    END as channel_name,\n    COUNT(DISTINCT receiptnumber) as transactions,\n    COUNT(DISTINCT customerid) as unique_customers,\n    SUM(totalamount) as total_revenue,\n    AVG(totalamount) as avg_transaction_value\nFROM transactionrecords\nWHERE business = :business_id\n    AND type = 'Sale'\n    AND createdtime BETWEEN :start_date AND :end_date\nGROUP BY channel\nORDER BY total_revenue DESC\n",
+      "insights": "Shows revenue distribution and customer behavior by channel",
+      "filters": {
+        "marketplace_only": "AND channel IN ('10','11','12','13')",
+        "instore_only": "AND channel IN ('0','3')"
+      }
+    },
+    "payment_method_distribution": {
+      "purpose": "Analyze payment method usage across transactions",
+      "template": "\nWITH payment_summary AS (\n    SELECT \n        p.paymentmethodname,\n        po.type as payment_type,\n        COUNT(DISTINCT t.receiptnumber) as transaction_count,\n        SUM(p.amount) as total_amount,\n        AVG(p.amount) as avg_amount,\n        t.channel\n    FROM transactionrecords t\n    JOIN transactionrecords__payments p ON t.receiptnumber = p.transactionrecords_foreignkey\n    LEFT JOIN businesses__paymentoptions po ON p.paymentmethodid = po._id\n    WHERE t.business = :business_id\n        AND t.type = 'Sale'\n        AND t.createdtime BETWEEN :start_date AND :end_date\n    GROUP BY p.paymentmethodname, po.type, t.channel\n)\nSELECT \n    paymentmethodname,\n    payment_type,\n    transaction_count,\n    total_amount,\n    ROUND(100.0 * transaction_count / SUM(transaction_count) OVER(), 2) as transaction_percentage\nFROM payment_summary\nORDER BY transaction_count DESC\n",
+      "joins": [
+        "transactionrecords__payments",
+        "businesses__paymentoptions"
+      ],
+      "grouping": "Payment method and type"
+    },
+    "qr_ordering_performance": {
+      "purpose": "Analyze QR code ordering adoption and performance",
+      "template": "\nSELECT \n    s.name as store_name,\n    COUNT(CASE WHEN t.channel = '3' THEN 1 END) as qr_orders,\n    COUNT(CASE WHEN t.channel = '0' THEN 1 END) as pos_orders,\n    ROUND(100.0 * COUNT(CASE WHEN t.channel = '3' THEN 1 END) / COUNT(*), 2) as qr_adoption_rate,\n    AVG(CASE WHEN t.channel = '3' THEN t.totalamount END) as avg_qr_order_value,\n    AVG(CASE WHEN t.channel = '0' THEN t.totalamount END) as avg_pos_order_value\nFROM transactionrecords t\nJOIN businesses__stores s ON t.storeid = s._id\nWHERE t.business = :business_id\n    AND t.type = 'Sale'\n    AND t.createdtime BETWEEN :start_date AND :end_date\n    AND EXISTS (SELECT 1 FROM businesses__qrorderingsettings WHERE business = :business_id)\nGROUP BY s.name\nHAVING COUNT(CASE WHEN t.channel = '3' THEN 1 END) > 0\nORDER BY qr_adoption_rate DESC\n",
+      "requirements": "Business must have QR ordering enabled",
+      "insights": "QR adoption rates and order value comparison"
+    }
+  },
+  "tax_patterns": {
+    "regional_tax_analysis": {
+      "purpose": "Analyze tax collection by region and tax code",
+      "template": "\nWITH tax_summary AS (\n    SELECT \n        b.country,\n        tc.taxcode,\n        tc.name as tax_name,\n        tc.rate as tax_rate,\n        COUNT(DISTINCT t.receiptnumber) as transactions,\n        SUM(t.tax) as total_tax,\n        SUM(t.subtotal) as total_subtotal,\n        ROUND(AVG(t.tax / NULLIF(t.subtotal, 0) * 100), 2) as effective_rate\n    FROM transactionrecords t\n    JOIN businesses b ON t.business = b.business\n    LEFT JOIN businesses__taxcodes tc ON t.taxcode = tc._id\n    WHERE t.business = :business_id\n        AND t.type = 'Sale'\n        AND t.createdtime BETWEEN :start_date AND :end_date\n    GROUP BY b.country, tc.taxcode, tc.name, tc.rate\n)\nSELECT \n    country,\n    taxcode,\n    tax_name,\n    tax_rate,\n    transactions,\n    total_tax,\n    effective_rate,\n    CASE \n        WHEN country = 'MY' AND taxcode IN ('SR', 'SST') THEN 'Service Tax'\n        WHEN country = 'PH' AND taxcode = 'BIR' THEN 'BIR Tax'\n        WHEN taxcode = 'VAT' THEN 'Value Added Tax'\n        WHEN taxcode IN ('ZR', 'TX') THEN 'Zero/Exempt'\n        ELSE 'Other'\n    END as tax_category\nFROM tax_summary\nORDER BY total_tax DESC\n",
+      "regional_rules": "Tax codes vary by country",
+      "joins": [
+        "businesses",
+        "businesses__taxcodes"
+      ]
+    }
+  },
+  "employee_patterns": {
+    "employee_performance_by_role": {
+      "purpose": "Analyze sales performance by employee role",
+      "template": "\nSELECT \n    CASE \n        WHEN e.manageraccess THEN 'Manager'\n        WHEN e.backofficeaccess THEN 'Back Office'\n        WHEN e.cashieraccess THEN 'Cashier'\n        ELSE 'Other'\n    END as role,\n    COUNT(DISTINCT e.employeenumber) as employee_count,\n    COUNT(DISTINCT t.receiptnumber) as transactions_processed,\n    SUM(t.totalamount) as total_sales,\n    AVG(t.totalamount) as avg_transaction_value,\n    COUNT(DISTINCT t.storeid) as stores_covered\nFROM transactionrecords t\nJOIN employees e ON t.employeenumber = e.employeenumber AND t.business = e.business\nWHERE t.business = :business_id\n    AND t.type = 'Sale'\n    AND t.createdtime BETWEEN :start_date AND :end_date\n    AND e.isdeleted \\!= true\nGROUP BY \n    CASE \n        WHEN e.manageraccess THEN 'Manager'\n        WHEN e.backofficeaccess THEN 'Back Office'\n        WHEN e.cashieraccess THEN 'Cashier'\n        ELSE 'Other'\n    END\nORDER BY total_sales DESC\n",
+      "access_hierarchy": "Manager > Back Office > Cashier",
+      "multi_role": "Employees may have multiple access types"
+    },
+    "multi_store_employee_coverage": {
+      "purpose": "Find employees working across multiple stores",
+      "template": "\nSELECT \n    e.employeenumber,\n    e.firstname || ' ' || e.lastname as employee_name,\n    CASE WHEN e.accessallstores THEN 'All Stores' ELSE 'Assigned Stores' END as access_type,\n    COUNT(DISTINCT t.storeid) as stores_worked,\n    STRING_AGG(DISTINCT s.name, ', ') as store_names,\n    COUNT(DISTINCT t.receiptnumber) as total_transactions\nFROM employees e\nJOIN transactionrecords t ON e.employeenumber = t.employeenumber AND e.business = t.business\nJOIN businesses__stores s ON t.storeid = s._id\nWHERE e.business = :business_id\n    AND t.type = 'Sale'\n    AND t.createdtime BETWEEN :start_date AND :end_date\n    AND e.isdeleted \\!= true\nGROUP BY e.employeenumber, e.firstname, e.lastname, e.accessallstores\nHAVING COUNT(DISTINCT t.storeid) > 1\nORDER BY stores_worked DESC\n",
+      "insights": "Identifies cross-store operations and coverage"
+    }
+  },
+  "promotion_patterns": {
+    "promotion_effectiveness": {
+      "purpose": "Measure promotion impact on sales",
+      "template": "\nWITH promotion_metrics AS (\n    SELECT \n        p.name as promotion_name,\n        p.type as promotion_type,\n        p.discounttype,\n        COUNT(DISTINCT tp.transactionrecords_foreignkey) as times_used,\n        SUM(tp.discountamount) as total_discount_given,\n        AVG(tp.discountamount) as avg_discount,\n        SUM(t.totalamount) as total_sales_with_promo,\n        AVG(t.totalamount) as avg_transaction_with_promo\n    FROM promotions p\n    JOIN transactionrecords__promotions tp ON p._id = tp.promotions_foreignkey\n    JOIN transactionrecords t ON tp.transactionrecords_foreignkey = t.receiptnumber\n    WHERE p.business = :business_id\n        AND t.type = 'Sale'\n        AND t.createdtime BETWEEN :start_date AND :end_date\n    GROUP BY p.name, p.type, p.discounttype\n)\nSELECT \n    promotion_name,\n    promotion_type,\n    discounttype,\n    times_used,\n    total_discount_given,\n    total_sales_with_promo,\n    ROUND(total_discount_given / NULLIF(total_sales_with_promo, 0) * 100, 2) as discount_percentage,\n    ROUND(total_sales_with_promo / NULLIF(times_used, 0), 2) as revenue_per_use\nFROM promotion_metrics\nORDER BY times_used DESC\n",
+      "metrics": [
+        "usage count",
+        "discount amount",
+        "revenue impact"
+      ],
+      "types": [
+        "merchant (99%)",
+        "universal (1%)"
+      ]
+    }
+  },
+  
+  "order_lifecycle_patterns": {
+    "order_status_tracking": {
+      "purpose": "Track order progression through lifecycle stages",
+      "template": "\nWITH order_status_timeline AS (\n    SELECT \n        receiptnumber,\n        status,\n        createdtime,\n        operator,\n        JSON_EXTRACT_PATH_TEXT(info, 'status') as new_status,\n        LAG(status) OVER (PARTITION BY receiptnumber ORDER BY createdtime) as previous_status,\n        LAG(createdtime) OVER (PARTITION BY receiptnumber ORDER BY createdtime) as previous_time\n    FROM orderlogs\n    WHERE business = :business_id\n        AND type = 'status_updated'\n        AND createdtime BETWEEN :start_date AND :end_date\n)\nSELECT \n    status as current_status,\n    COUNT(DISTINCT receiptnumber) as order_count,\n    COUNT(CASE WHEN operator = 'system' THEN 1 END) as system_updates,\n    COUNT(CASE WHEN operator = 'customer' THEN 1 END) as customer_updates,\n    AVG(EXTRACT(EPOCH FROM (createdtime - previous_time))/3600) as avg_hours_in_status\nFROM order_status_timeline\nGROUP BY status\nORDER BY \n    CASE status\n        WHEN 'pendingPayment' THEN 1\n        WHEN 'paid' THEN 2\n        WHEN 'accepted' THEN 3\n        WHEN 'confirmed' THEN 4\n        WHEN 'logisticsConfirmed' THEN 5\n        WHEN 'pickedUp' THEN 6\n        WHEN 'delivered' THEN 7\n        WHEN 'cancelled' THEN 8\n    END\n",
+      "insights": "Shows order flow and time spent in each status",
+      "metrics": ["order count by status", "processing time", "operator breakdown"]
+    },
+    
+    "delivery_performance": {
+      "purpose": "Analyze delivery times and success rates",
+      "template": "\nWITH order_milestones AS (\n    SELECT \n        receiptnumber,\n        MAX(CASE WHEN status = 'paid' THEN createdtime END) as paid_time,\n        MAX(CASE WHEN status = 'confirmed' THEN createdtime END) as confirmed_time,\n        MAX(CASE WHEN status = 'pickedUp' THEN createdtime END) as pickup_time,\n        MAX(CASE WHEN status = 'delivered' THEN createdtime END) as delivered_time,\n        MAX(CASE WHEN status = 'cancelled' THEN createdtime END) as cancelled_time\n    FROM orderlogs\n    WHERE business = :business_id\n        AND type = 'status_updated'\n        AND createdtime BETWEEN :start_date AND :end_date\n    GROUP BY receiptnumber\n)\nSELECT \n    COUNT(*) as total_orders,\n    COUNT(delivered_time) as delivered_orders,\n    COUNT(cancelled_time) as cancelled_orders,\n    ROUND(100.0 * COUNT(delivered_time) / COUNT(*), 2) as delivery_rate,\n    AVG(EXTRACT(EPOCH FROM (delivered_time - confirmed_time))/3600) as avg_delivery_hours,\n    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (delivered_time - confirmed_time))/3600) as median_delivery_hours,\n    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (delivered_time - confirmed_time))/3600) as p95_delivery_hours\nFROM order_milestones\nWHERE confirmed_time IS NOT NULL\n",
+      "kpis": ["delivery rate", "average delivery time", "SLA compliance"]
+    }
+  },
+  
+  "inventory_patterns": {
+    "stock_level_analysis": {
+      "purpose": "Monitor current stock levels and identify issues",
+      "template": "\nSELECT \n    s.name as store_name,\n    COUNT(DISTINCT i.productid) as total_skus,\n    COUNT(CASE WHEN i.quantityonhand = 0 THEN 1 END) as out_of_stock_skus,\n    COUNT(CASE WHEN i.quantityonhand <= i.restocklevel THEN 1 END) as low_stock_skus,\n    COUNT(CASE WHEN i.quantityonhand > i.desiredstocklevel * 1.5 THEN 1 END) as overstock_skus,\n    SUM(i.quantityonhand) as total_units,\n    SUM(i.quantityonhand * p.costprice) as total_stock_value\nFROM inventories i\nJOIN products p ON i.productid = p._id\nJOIN businesses__stores s ON i.storeid = s._id\nWHERE i.business = :business_id\n    AND (i.isdeleted IS NULL OR i.isdeleted != true)\nGROUP BY s.name\nORDER BY total_stock_value DESC\n",
+      "metrics": ["stock levels", "out of stock rate", "overstock identification"],
+      "alerts": ["low stock", "out of stock", "overstock"]
+    },
+    
+    "stock_movement_tracking": {
+      "purpose": "Track inventory changes and movements",
+      "template": "\nWITH stock_changes AS (\n    SELECT \n        DATE_TRUNC('day', st.createdtime) as date,\n        'stocktake' as movement_type,\n        COUNT(DISTINCT st.stocktakeid) as movement_count,\n        SUM(sti.quantity - sti.originalquantity) as quantity_change\n    FROM stocktakeitems sti\n    JOIN stocktakes st ON sti.stocktakeid = st._id\n    WHERE st.business = :business_id\n        AND st.createdtime BETWEEN :start_date AND :end_date\n    GROUP BY DATE_TRUNC('day', st.createdtime)\n    \n    UNION ALL\n    \n    SELECT \n        DATE_TRUNC('day', createdtime) as date,\n        'return' as movement_type,\n        COUNT(*) as movement_count,\n        SUM(total) as quantity_change\n    FROM stockreturns\n    WHERE business = :business_id\n        AND status = 'completed'\n        AND createdtime BETWEEN :start_date AND :end_date\n    GROUP BY DATE_TRUNC('day', createdtime)\n)\nSELECT \n    date,\n    movement_type,\n    movement_count,\n    quantity_change,\n    SUM(quantity_change) OVER (ORDER BY date) as running_total_change\nFROM stock_changes\nORDER BY date DESC\n",
+      "tracks": ["stocktakes", "returns", "transfers", "adjustments"]
+    }
+  },
+  
+  "financial_reconciliation_patterns": {
+    "payout_reconciliation": {
+      "purpose": "Track payment to payout reconciliation",
+      "template": "\nSELECT \n    DATE_TRUNC('day', createdtime) as date,\n    gatewayname,\n    COUNT(*) as transaction_count,\n    SUM(amount) as total_amount,\n    COUNT(CASE WHEN payoutstatus = 'pending' THEN 1 END) as pending_payouts,\n    COUNT(CASE WHEN payoutstatus = 'completed' THEN 1 END) as completed_payouts,\n    COUNT(CASE WHEN reconciliationstatus = 'pending' THEN 1 END) as pending_reconciliation,\n    COUNT(CASE WHEN reconciliationstatus = 'passed' THEN 1 END) as passed_reconciliation,\n    ROUND(100.0 * COUNT(CASE WHEN reconciliationstatus = 'passed' THEN 1 END) / NULLIF(COUNT(*), 0), 2) as reconciliation_rate\nFROM payoutitems\nWHERE business = :business_id\n    AND createdtime BETWEEN :start_date AND :end_date\nGROUP BY DATE_TRUNC('day', createdtime), gatewayname\nORDER BY date DESC\n",
+      "metrics": ["reconciliation rate", "pending amounts", "gateway breakdown"]
+    },
+    
+    "payment_gateway_performance": {
+      "purpose": "Compare payment gateway usage and success",
+      "template": "\nSELECT \n    p.gatewayname,\n    COUNT(DISTINCT p.receiptnumber) as transaction_count,\n    SUM(p.amount) as total_processed,\n    AVG(p.amount) as avg_transaction_value,\n    COUNT(CASE WHEN p.payoutstatus = 'completed' THEN 1 END) as successful_payouts,\n    ROUND(100.0 * COUNT(CASE WHEN p.payoutstatus = 'completed' THEN 1 END) / COUNT(*), 2) as success_rate,\n    AVG(CASE WHEN p.payoutstatus = 'completed' \n        THEN EXTRACT(EPOCH FROM (p.modifiedtime - p.createdtime))/3600 END) as avg_processing_hours\nFROM payoutitems p\nWHERE p.business = :business_id\n    AND p.createdtime BETWEEN :start_date AND :end_date\nGROUP BY p.gatewayname\nORDER BY total_processed DESC\n",
+      "gateways": ["StripeInternational", "Offline"],
+      "metrics": ["volume", "success rate", "processing time"]
+    }
+  },
+  
+  "voucher_patterns": {
+    "voucher_performance": {
+      "purpose": "Analyze voucher creation and redemption",
+      "template": "\nSELECT \n    purchasechannel,\n    COUNT(*) as vouchers_created,\n    COUNT(CASE WHEN status = 'unused' THEN 1 END) as active_vouchers,\n    COUNT(CASE WHEN status = 'used' THEN 1 END) as redeemed_vouchers,\n    COUNT(CASE WHEN status = 'expired' THEN 1 END) as expired_vouchers,\n    SUM(value) as total_value_created,\n    SUM(CASE WHEN status = 'unused' THEN value END) as outstanding_value,\n    ROUND(100.0 * COUNT(CASE WHEN status = 'used' THEN 1 END) / NULLIF(COUNT(*), 0), 2) as redemption_rate,\n    AVG(CASE WHEN status = 'used' \n        THEN EXTRACT(EPOCH FROM (useddate - createdtime))/86400 END) as avg_days_to_redemption\nFROM vouchers\nWHERE business = :business_id\n    AND createdtime BETWEEN :start_date AND :end_date\nGROUP BY purchasechannel\nORDER BY vouchers_created DESC\n",
+      "channels": ["systemRefund", "cleverTapWebhook"],
+      "metrics": ["redemption rate", "outstanding liability", "redemption velocity"]
+    }
+  },
+  
+  "marketing_campaign_patterns": {
+    "sms_campaign_effectiveness": {
+      "purpose": "Measure SMS campaign delivery and engagement",
+      "template": "\nWITH campaign_metrics AS (\n    SELECT \n        c.name as campaign_name,\n        c.createdtime as campaign_date,\n        c.template,\n        COUNT(DISTINCT m.phone) as messages_sent,\n        COUNT(CASE WHEN m.status = 'delivered' THEN 1 END) as messages_delivered,\n        COUNT(CASE WHEN m.status = 'pending' THEN 1 END) as messages_pending,\n        COUNT(CASE WHEN m.status = 'failed' THEN 1 END) as messages_failed\n    FROM campaigns c\n    LEFT JOIN messages m ON c.business = m.business \n        AND m.createdtime BETWEEN c.createdtime AND c.createdtime + INTERVAL '1 day'\n    WHERE c.business = :business_id\n        AND c.channel = 'SMS'\n        AND c.createdtime BETWEEN :start_date AND :end_date\n    GROUP BY c.name, c.createdtime, c.template\n)\nSELECT \n    campaign_name,\n    campaign_date,\n    messages_sent,\n    messages_delivered,\n    ROUND(100.0 * messages_delivered / NULLIF(messages_sent, 0), 2) as delivery_rate,\n    messages_failed,\n    template\nFROM campaign_metrics\nORDER BY campaign_date DESC\n",
+      "channels": ["SMS"],
+      "metrics": ["delivery rate", "failure rate", "reach"]
+    }
+  }
+}

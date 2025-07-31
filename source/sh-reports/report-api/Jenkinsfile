@@ -1,0 +1,39 @@
+pipeline {
+  agent any
+  stages {
+    stage('Prepare env') {
+      steps {
+        sh 'git submodule update --init'
+        sh 'cp .env.example .env'
+        sh 'yarn install'
+      }
+    }
+    stage('Unit Test') {
+      steps {
+        sh 'yarn run test:coverage'
+      }
+    }
+    stage('SonarQube') {
+      steps {
+        withSonarQubeEnv('SonarQube') {
+          sh 'echo "sonar.branch.name=$GIT_BRANCH" >> sonar-project.properties'
+          sh 'echo "sonar.projectVersion=$(date +"%y.%m")" >> sonar-project.properties'
+          sh '/usr/local/sonar-scanner/bin/sonar-scanner'
+        }
+        script {
+          timeout(10) {
+            def qg = waitForQualityGate()
+            if (qg.status != 'OK') {
+              error "Pipeline failed due to Sonarqube Quality Gates! failure: ${qg.status}"
+            }
+          }
+        }
+      }
+    }
+  }
+  post {
+    always {
+      cleanWs()
+    }
+  }
+}

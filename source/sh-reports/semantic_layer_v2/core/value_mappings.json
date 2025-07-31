@@ -1,0 +1,1227 @@
+{
+  "version": "1.0.0",
+  "description": "Comprehensive enum value mappings based on actual data discoveries",
+  "last_updated": "2025-07-09",
+  "created_from": "Data extraction of 1,800 sample records across 77 tables",
+  
+  "country": {
+    "field": "country",
+    "type": "ISO 3166-1 alpha-2",
+    "mappings": {
+      "MY": {
+        "display_name": "Malaysia",
+        "currency": "MYR",
+        "timezone": "Asia/Kuala_Lumpur",
+        "language": "ms"
+      },
+      "CN": {
+        "display_name": "China",
+        "currency": "CNY",
+        "timezone": "Asia/Shanghai",
+        "language": "zh"
+      },
+      "TH": {
+        "display_name": "Thailand",
+        "currency": "THB",
+        "timezone": "Asia/Bangkok",
+        "language": "th"
+      },
+      "SG": {
+        "display_name": "Singapore",
+        "currency": "SGD",
+        "timezone": "Asia/Singapore",
+        "language": "en"
+      },
+      "PH": {
+        "display_name": "Philippines",
+        "currency": "PHP",
+        "timezone": "Asia/Manila",
+        "language": "en"
+      },
+      "KE": {
+        "display_name": "Kenya",
+        "currency": "KES",
+        "timezone": "Africa/Nairobi",
+        "language": "en"
+      },
+      "BD": {
+        "display_name": "Bangladesh",
+        "currency": "BDT",
+        "timezone": "Asia/Dhaka",
+        "language": "bn"
+      }
+    }
+  },
+  
+  "currency": {
+    "field": "currency",
+    "type": "ISO 4217",
+    "mappings": {
+      "MYR": {
+        "symbol": "RM",
+        "display_name": "Malaysian Ringgit",
+        "decimal_places": 2,
+        "country": "MY"
+      },
+      "CNY": {
+        "symbol": "¥",
+        "display_name": "Chinese Yuan",
+        "decimal_places": 2,
+        "country": "CN"
+      },
+      "THB": {
+        "symbol": "฿",
+        "display_name": "Thai Baht",
+        "decimal_places": 2,
+        "country": "TH"
+      },
+      "SGD": {
+        "symbol": "S$",
+        "display_name": "Singapore Dollar",
+        "decimal_places": 2,
+        "country": "SG"
+      },
+      "PHP": {
+        "symbol": "₱",
+        "display_name": "Philippine Peso",
+        "decimal_places": 2,
+        "country": "PH"
+      },
+      "KES": {
+        "symbol": "KSh",
+        "display_name": "Kenyan Shilling",
+        "decimal_places": 2,
+        "country": "KE"
+      },
+      "BDT": {
+        "symbol": "৳",
+        "display_name": "Bangladeshi Taka",
+        "decimal_places": 2,
+        "country": "BD"
+      },
+      "USD": {
+        "symbol": "$",
+        "display_name": "US Dollar",
+        "decimal_places": 2,
+        "country": "US"
+      }
+    }
+  },
+  
+  "business_type": {
+    "field": "businesstype",
+    "discovered_values": ["retail", "cafe", "restaurant", "Retail", ""],
+    "mappings": {
+      "retail": {
+        "display_name": "Retail Store",
+        "category": "retail",
+        "typical_hours": "10:00-22:00"
+      },
+      "Retail": {
+        "display_name": "Retail Store",
+        "category": "retail",
+        "normalized_to": "retail"
+      },
+      "cafe": {
+        "display_name": "Café",
+        "category": "f&b",
+        "typical_hours": "08:00-22:00"
+      },
+      "restaurant": {
+        "display_name": "Restaurant",
+        "category": "f&b",
+        "typical_hours": "11:00-23:00"
+      },
+      "": {
+        "display_name": "Unspecified",
+        "category": "other",
+        "normalized_to": "unspecified"
+      }
+    }
+  },
+  
+  "subscription_status": {
+    "field": "subscriptionstatus",
+    "mappings": {
+      "Active": {
+        "display_name": "Active Subscription",
+        "is_active": true,
+        "has_access": true
+      },
+      "Trial": {
+        "display_name": "Trial Period",
+        "is_active": true,
+        "has_access": true,
+        "is_limited": true
+      },
+      "Expired": {
+        "display_name": "Subscription Expired",
+        "is_active": false,
+        "has_access": false
+      },
+      "": {
+        "display_name": "No Subscription",
+        "is_active": false,
+        "has_access": false
+      }
+    }
+  },
+  
+  "transaction_type": {
+    "field": "transactiontype",
+    "mappings": {
+      "Sale": {
+        "display_name": "Sale",
+        "amount_sign": "positive",
+        "affects_revenue": true,
+        "affects_inventory": "decrease"
+      },
+      "Return": {
+        "display_name": "Return",
+        "amount_sign": "negative",
+        "affects_revenue": true,
+        "affects_inventory": "increase"
+      }
+    }
+  },
+  
+  "channel": {
+    "field": "channel",
+    "type": "numeric_code",
+    "mappings": {
+      "0": {
+        "display_name": "POS",
+        "category": "in_store",
+        "is_online": false
+      },
+      "1": {
+        "display_name": "Online Store",
+        "category": "online",
+        "is_online": true
+      },
+      "3": {
+        "display_name": "QR Order",
+        "category": "in_store",
+        "is_online": false,
+        "is_self_service": true
+      },
+      "10": {
+        "display_name": "GrabFood",
+        "category": "marketplace",
+        "is_online": true,
+        "platform": "grab"
+      },
+      "11": {
+        "display_name": "ShopeeFood",
+        "category": "marketplace",
+        "is_online": true,
+        "platform": "shopee"
+      },
+      "12": {
+        "display_name": "FoodPanda",
+        "category": "marketplace",
+        "is_online": true,
+        "platform": "foodpanda"
+      },
+      "13": {
+        "display_name": "Beep",
+        "category": "marketplace",
+        "is_online": true,
+        "platform": "beep",
+        "is_storehub_owned": true
+      }
+    }
+  },
+  
+  "payment_method": {
+    "field": "paymentmethod",
+    "discovered_values": ["Cash", ""],
+    "mappings": {
+      "Cash": {
+        "display_name": "Cash",
+        "category": "cash",
+        "requires_change": true
+      },
+      "": {
+        "display_name": "Unspecified",
+        "category": "unknown"
+      }
+    }
+  },
+  
+  "price_type": {
+    "field": "pricetype",
+    "mappings": {
+      "fixed": {
+        "display_name": "Fixed Price",
+        "allows_modification": false,
+        "percentage": "88%"
+      },
+      "variable": {
+        "display_name": "Variable Price",
+        "allows_modification": true,
+        "percentage": "12%"
+      }
+    }
+  },
+  
+  "marketplace_tags": {
+    "field": "tags",
+    "type": "comma_separated",
+    "common_patterns": {
+      "grab,shopee": {
+        "platforms": ["grab", "shopee"],
+        "display_name": "Grab & Shopee"
+      },
+      "auto-tag": {
+        "source": "api",
+        "display_name": "API Generated"
+      },
+      "": {
+        "display_name": "No Tags"
+      }
+    }
+  },
+  
+  "item_type": {
+    "field": "itemtype",
+    "discovered_values": ["", "ServiceCharge"],
+    "mappings": {
+      "": {
+        "display_name": "Product Item",
+        "is_product": true,
+        "affects_inventory": true
+      },
+      "ServiceCharge": {
+        "display_name": "Service Charge",
+        "is_product": false,
+        "affects_inventory": false,
+        "is_fee": true
+      }
+    }
+  },
+  
+  "customer_tier": {
+    "field": "tags",
+    "pattern": "SH_Tier_",
+    "mappings": {
+      "SH_Tier_1": {
+        "display_name": "Tier 1 - VIP",
+        "level": 1,
+        "benefits": "highest"
+      },
+      "SH_Tier_2": {
+        "display_name": "Tier 2 - Gold",
+        "level": 2,
+        "benefits": "high"
+      },
+      "SH_Tier_3": {
+        "display_name": "Tier 3 - Silver",
+        "level": 3,
+        "benefits": "medium"
+      },
+      "SH_Tier_4": {
+        "display_name": "Tier 4 - Bronze",
+        "level": 4,
+        "benefits": "basic"
+      }
+    }
+  },
+  
+  "payment_option_type": {
+    "field": "type",
+    "table": "businesses__paymentoptions",
+    "mappings": {
+      "custom": {
+        "display_name": "Custom Payment Method",
+        "percentage": "91%",
+        "description": "Business-defined payment methods"
+      },
+      "qrCode": {
+        "display_name": "QR Code Payment",
+        "percentage": "8%",
+        "description": "QR-based payment methods",
+        "requires": "QR ordering enabled"
+      },
+      "NFC": {
+        "display_name": "NFC Payment",
+        "percentage": "1%",
+        "description": "Near-field communication payments",
+        "requires": "NFC hardware"
+      }
+    }
+  },
+  
+  "tax_code": {
+    "field": "taxcode",
+    "table": "businesses__taxcodes",
+    "mappings": {
+      "SR": {
+        "display_name": "Standard Rate",
+        "common_in": ["MY"],
+        "description": "Standard service tax rate"
+      },
+      "VAT": {
+        "display_name": "Value Added Tax",
+        "common_in": ["TH", "PH"],
+        "description": "VAT system"
+      },
+      "BIR": {
+        "display_name": "Bureau of Internal Revenue",
+        "common_in": ["PH"],
+        "description": "Philippines tax code"
+      },
+      "TX": {
+        "display_name": "Tax Exempt",
+        "rate": 0,
+        "description": "No tax applied"
+      },
+      "ZR": {
+        "display_name": "Zero Rated",
+        "rate": 0,
+        "description": "Zero-rated for tax"
+      }
+    }
+  },
+  
+  "employee_access_level": {
+    "field": "various",
+    "table": "employees",
+    "mappings": {
+      "manageraccess": {
+        "display_name": "Manager Access",
+        "level": 3,
+        "permissions": "Full access including reports and settings"
+      },
+      "backofficeaccess": {
+        "display_name": "Back Office Access",
+        "level": 2,
+        "permissions": "Administrative functions"
+      },
+      "cashieraccess": {
+        "display_name": "Cashier Access",
+        "level": 1,
+        "permissions": "POS operations only"
+      },
+      "limitbackofficeaccess": {
+        "display_name": "Limited Back Office",
+        "level": 1.5,
+        "permissions": "Restricted administrative functions"
+      },
+      "accessallstores": {
+        "display_name": "Multi-Store Access",
+        "scope": "all",
+        "description": "Can access all business locations"
+      }
+    }
+  },
+  
+  "promotion_type": {
+    "field": "type",
+    "table": "promotions",
+    "mappings": {
+      "merchant": {
+        "display_name": "Merchant Promotion",
+        "percentage": "99%",
+        "scope": "business",
+        "description": "Business-specific promotions"
+      },
+      "universal": {
+        "display_name": "Universal Promotion",
+        "percentage": "1%",
+        "scope": "platform",
+        "description": "Platform-wide promotions"
+      }
+    }
+  },
+  
+  "campaign_status": {
+    "field": "status",
+    "table": "campaignjobs",
+    "discovered_values": ["completed", "failed", "pending", "processing"],
+    "mappings": {
+      "completed": {
+        "display_name": "Completed",
+        "is_final": true,
+        "is_success": true
+      },
+      "failed": {
+        "display_name": "Failed",
+        "is_final": true,
+        "is_success": false
+      },
+      "pending": {
+        "display_name": "Pending",
+        "is_final": false,
+        "is_active": false
+      },
+      "processing": {
+        "display_name": "Processing",
+        "is_final": false,
+        "is_active": true
+      }
+    }
+  },
+  
+  "order_status": {
+    "field": "status",
+    "table": "orderlogs",
+    "mappings": {
+      "pendingPayment": {
+        "display_name": "Pending Payment",
+        "stage": "initial",
+        "next_states": ["paid", "cancelled"]
+      },
+      "paid": {
+        "display_name": "Paid",
+        "stage": "payment_complete",
+        "next_states": ["accepted", "cancelled"]
+      },
+      "accepted": {
+        "display_name": "Accepted",
+        "stage": "merchant_action",
+        "next_states": ["confirmed", "cancelled"]
+      },
+      "confirmed": {
+        "display_name": "Confirmed",
+        "stage": "processing",
+        "next_states": ["logisticsConfirmed", "cancelled"]
+      },
+      "logisticsConfirmed": {
+        "display_name": "Logistics Confirmed",
+        "stage": "shipping",
+        "next_states": ["pickedUp", "cancelled"]
+      },
+      "pickedUp": {
+        "display_name": "Picked Up",
+        "stage": "in_transit",
+        "next_states": ["delivered", "cancelled"]
+      },
+      "delivered": {
+        "display_name": "Delivered",
+        "stage": "completed",
+        "is_final": true
+      },
+      "cancelled": {
+        "display_name": "Cancelled",
+        "stage": "terminated",
+        "is_final": true
+      }
+    }
+  },
+  
+  "payout_status": {
+    "field": "payoutstatus",
+    "table": "payoutitems",
+    "mappings": {
+      "pending": {
+        "display_name": "Pending Payout",
+        "is_final": false
+      },
+      "completed": {
+        "display_name": "Payout Completed",
+        "is_final": true
+      }
+    }
+  },
+  
+  "reconciliation_status": {
+    "field": "reconciliationstatus",
+    "table": "payoutitems",
+    "mappings": {
+      "pending": {
+        "display_name": "Pending Reconciliation",
+        "is_final": false
+      },
+      "passed": {
+        "display_name": "Reconciliation Passed",
+        "is_final": true
+      }
+    }
+  },
+  
+  "voucher_status": {
+    "field": "status",
+    "table": "vouchers",
+    "mappings": {
+      "unused": {
+        "display_name": "Unused",
+        "is_active": true,
+        "can_redeem": true
+      },
+      "used": {
+        "display_name": "Used",
+        "is_active": false,
+        "can_redeem": false
+      },
+      "expired": {
+        "display_name": "Expired",
+        "is_active": false,
+        "can_redeem": false
+      }
+    }
+  },
+  
+  "voucher_purchase_channel": {
+    "field": "purchasechannel",
+    "table": "vouchers",
+    "mappings": {
+      "systemRefund": {
+        "display_name": "System Refund",
+        "type": "automatic",
+        "description": "Auto-generated for refunds"
+      },
+      "cleverTapWebhook": {
+        "display_name": "CleverTap Campaign",
+        "type": "marketing",
+        "description": "Marketing campaign vouchers"
+      }
+    }
+  },
+  
+  "message_status": {
+    "field": "status",
+    "table": "messages",
+    "mappings": {
+      "delivered": {
+        "display_name": "Delivered",
+        "is_final": true,
+        "is_success": true
+      },
+      "pending": {
+        "display_name": "Pending",
+        "is_final": false,
+        "is_success": false
+      },
+      "failed": {
+        "display_name": "Failed",
+        "is_final": true,
+        "is_success": false
+      }
+    }
+  },
+  
+  "stock_return_status": {
+    "field": "status",
+    "table": "stockreturns",
+    "mappings": {
+      "open": {
+        "display_name": "Open",
+        "is_final": false,
+        "can_edit": true
+      },
+      "completed": {
+        "display_name": "Completed",
+        "is_final": true,
+        "can_edit": false
+      }
+    }
+  },
+  
+  "promotion_condition_entity": {
+    "field": "entity",
+    "table": "promotions__conditions",
+    "mappings": {
+      "business": {
+        "display_name": "Business Level",
+        "scope": "merchant"
+      },
+      "transaction": {
+        "display_name": "Transaction Level",
+        "scope": "order"
+      },
+      "product": {
+        "display_name": "Product Level",
+        "scope": "item"
+      },
+      "customer": {
+        "display_name": "Customer Level",
+        "scope": "user"
+      }
+    }
+  },
+  
+  "user_action_types": {
+    "field": "action",
+    "table": "useractionlogs",
+    "mappings": {
+      "cancel_OnlineTransaction": {
+        "display_name": "Cancel Online Transaction",
+        "category": "transaction",
+        "requires_approval": true,
+        "audit_level": "high"
+      },
+      "update_subscription_status": {
+        "display_name": "Update Subscription Status",
+        "category": "subscription",
+        "requires_approval": true,
+        "audit_level": "high"
+      }
+    }
+  },
+  
+  "support_tool_actions": {
+    "field": "source",
+    "table": "useractionlogs",
+    "mappings": {
+      "support-tool": {
+        "display_name": "Support Tool",
+        "internal_only": true,
+        "requires_authentication": true
+      }
+    }
+  },
+  
+  "support_staff": {
+    "field": "user",
+    "table": "useractionlogs",
+    "mappings": {
+      "cathy.li@storehub.com": {
+        "display_name": "Cathy Li",
+        "role": "support_staff",
+        "actions": ["cancel_OnlineTransaction"]
+      },
+      "leykwan.choo@storehub.com": {
+        "display_name": "Leykwan Choo",
+        "role": "support_staff",
+        "actions": ["cancel_OnlineTransaction"]
+      },
+      "alex.toh@storehub.com": {
+        "display_name": "Alex Toh",
+        "role": "support_staff",
+        "actions": ["update_subscription_status"]
+      },
+      "grace.choong@storehub.com": {
+        "display_name": "Grace Choong",
+        "role": "support_staff",
+        "actions": ["cancel_OnlineTransaction"]
+      }
+    }
+  },
+  
+  "promotion_condition_operator": {
+    "field": "operator",
+    "table": "promotions__conditions",
+    "mappings": {
+      "in": {
+        "display_name": "In List",
+        "type": "list"
+      },
+      "gte": {
+        "display_name": "Greater Than or Equal",
+        "type": "numeric"
+      },
+      "contains": {
+        "display_name": "Contains",
+        "type": "string"
+      },
+      "eq": {
+        "display_name": "Equals",
+        "type": "exact"
+      }
+    }
+  },
+  
+  "order_log_type": {
+    "field": "type",
+    "table": "orderlogs",
+    "mappings": {
+      "status_updated": {
+        "display_name": "Status Updated",
+        "description": "Order status change event"
+      }
+    }
+  },
+  
+  "order_log_operator": {
+    "field": "operator",
+    "table": "orderlogs",
+    "mappings": {
+      "system": {
+        "display_name": "System",
+        "type": "automated",
+        "description": "System-generated event"
+      },
+      "customer": {
+        "display_name": "Customer",
+        "type": "manual",
+        "description": "Customer-initiated event"
+      }
+    }
+  },
+  
+  "payment_gateway": {
+    "field": "gatewayname",
+    "table": "payoutitems",
+    "mappings": {
+      "StripeInternational": {
+        "display_name": "Stripe International",
+        "type": "online",
+        "provider": "Stripe"
+      },
+      "Offline": {
+        "display_name": "Offline Payment",
+        "type": "offline",
+        "provider": "Manual"
+      }
+    }
+  },
+  
+  "push_provider": {
+    "field": "pushprovider",
+    "table": "businesses__cashregisters",
+    "mappings": {
+      "": {
+        "display_name": "No Push Service",
+        "has_push": false
+      },
+      "push-svc": {
+        "display_name": "Push Service Enabled",
+        "has_push": true,
+        "service": "storehub_push"
+      }
+    }
+  },
+  
+  "register_platform": {
+    "field": "platform",
+    "table": "businesses__cashregisters",
+    "mappings": {
+      "": {
+        "display_name": "Unknown Platform",
+        "type": "unknown"
+      },
+      "Android": {
+        "display_name": "Android",
+        "type": "mobile",
+        "os": "android"
+      },
+      "iOS": {
+        "display_name": "iOS",
+        "type": "mobile", 
+        "os": "ios"
+      },
+      "RN-iOS": {
+        "display_name": "React Native iOS",
+        "type": "mobile",
+        "os": "ios",
+        "framework": "react_native"
+      }
+    }
+  },
+  
+  "beep_brand_name": {
+    "field": "beepbrandname",
+    "table": "onlinestoreinfos",
+    "mappings": {
+      "": {
+        "display_name": "No Brand",
+        "has_brand": false
+      },
+      "auto brand name": {
+        "display_name": "Auto Generated Brand",
+        "has_brand": true,
+        "is_automatic": true
+      },
+      "test brand": {
+        "display_name": "Test Brand",
+        "has_brand": true,
+        "is_test": true
+      }
+    }
+  },
+  
+  "chat_type": {
+    "field": "enabledchattype",
+    "table": "onlinestoreinfos",
+    "mappings": {
+      "": {
+        "display_name": "No Chat",
+        "has_chat": false
+      },
+      "facebook": {
+        "display_name": "Facebook Messenger",
+        "has_chat": true,
+        "provider": "facebook"
+      }
+    }
+  },
+  
+  "online_store_connect_status": {
+    "field": "connectstatus",
+    "table": "onlinestoreinfos",
+    "mappings": {
+      "": {
+        "display_name": "Not Connected",
+        "is_connected": false
+      },
+      "connected": {
+        "display_name": "Connected",
+        "is_connected": true
+      }
+    }
+  },
+  
+  "employee_device_platform": {
+    "field": "platform",
+    "table": "employees__devices",
+    "mappings": {
+      "android": {
+        "display_name": "Android",
+        "type": "mobile",
+        "os": "android"
+      },
+      "ios": {
+        "display_name": "iOS",
+        "type": "mobile",
+        "os": "ios"
+      }
+    }
+  },
+  
+  "employee_push_platform": {
+    "field": "pushplatform",
+    "table": "employees__devices",
+    "mappings": {
+      "FCM": {
+        "display_name": "Firebase Cloud Messaging",
+        "provider": "Google",
+        "for_platform": "Android"
+      },
+      "HMS": {
+        "display_name": "Huawei Mobile Services",
+        "provider": "Huawei",
+        "for_platform": "Android (Huawei devices)"
+      },
+      "IOS": {
+        "display_name": "Apple Push Notification Service",
+        "provider": "Apple",
+        "for_platform": "iOS"
+      }
+    }
+  },
+  
+  "employee_app_model": {
+    "field": "appmodel",
+    "table": "employees__devices",
+    "mappings": {
+      "BackOfficeApp": {
+        "display_name": "Back Office Mobile App",
+        "type": "mobile_app",
+        "usage": "Employee management on mobile"
+      },
+      "BackOffice": {
+        "display_name": "Back Office System",
+        "type": "system",
+        "usage": "Legacy or web-based access"
+      }
+    }
+  },
+  
+  "loyalty_event_type": {
+    "field": "eventtype",
+    "table": "loyaltychangelogs",
+    "mappings": {
+      "earned": {
+        "display_name": "Points Earned",
+        "amount_sign": "positive",
+        "description": "Points earned from purchases"
+      },
+      "expired": {
+        "display_name": "Points Expired",
+        "amount_sign": "negative",
+        "description": "Points expired due to time limit"
+      },
+      "expense": {
+        "display_name": "Points Spent",
+        "amount_sign": "negative",
+        "description": "Points spent on rewards"
+      },
+      "return": {
+        "display_name": "Return Adjustment",
+        "amount_sign": "negative",
+        "description": "Points adjusted for returns"
+      },
+      "transactionCancelled": {
+        "display_name": "Transaction Cancelled",
+        "amount_sign": "negative",
+        "description": "Points reversed for cancelled transactions"
+      },
+      "paymentCancelled_freezeRefund": {
+        "display_name": "Payment Cancelled - Freeze Refund",
+        "amount_sign": "positive",
+        "description": "Points frozen for payment issues"
+      },
+      "expense_freeze": {
+        "display_name": "Expense Freeze",
+        "amount_sign": "negative",
+        "description": "Points frozen due to expense issues"
+      }
+    }
+  },
+  
+  "loyalty_source": {
+    "field": "source",
+    "table": "loyaltychangelogs",
+    "mappings": {
+      "REGISTER": {
+        "display_name": "POS Register",
+        "category": "in_store",
+        "description": "In-store POS transactions"
+      },
+      "QR_ORDERING": {
+        "display_name": "QR Order",
+        "category": "self_service",
+        "description": "QR code self-service orders"
+      },
+      "RECEIPT": {
+        "display_name": "Receipt Scan",
+        "category": "manual",
+        "description": "Receipt-based loyalty claims"
+      }
+    }
+  },
+  
+  "loyalty_reward_type": {
+    "field": "rewardtype",
+    "table": "loyaltychangelogs",
+    "mappings": {
+      "cashback": {
+        "display_name": "Cashback",
+        "type": "monetary",
+        "description": "Cash-equivalent rewards"
+      },
+      "points": {
+        "display_name": "Points",
+        "type": "virtual",
+        "description": "Traditional points system"
+      },
+      "": {
+        "display_name": "Unspecified",
+        "type": "unknown",
+        "description": "Legacy or unspecified reward type"
+      }
+    }
+  },
+  
+  "payment_gateway": {
+    "field": "paymentgateway",
+    "table": "gatewayrecords",
+    "mappings": {
+      "stripe": {
+        "display_name": "Stripe",
+        "type": "online",
+        "region": "international",
+        "description": "Stripe International payment processor"
+      },
+      "offline": {
+        "display_name": "Offline Payment",
+        "type": "manual",
+        "region": "local",
+        "description": "Manual/offline payment processing"
+      }
+    }
+  },
+  
+  "gateway_transfer_status": {
+    "field": "transferstatus",
+    "table": "gatewayrecords",
+    "mappings": {
+      "success": {
+        "display_name": "Success",
+        "is_final": true,
+        "is_success": true
+      },
+      "pending": {
+        "display_name": "Pending",
+        "is_final": false,
+        "is_success": false
+      },
+      "failed": {
+        "display_name": "Failed",
+        "is_final": true,
+        "is_success": false
+      }
+    }
+  },
+  
+  "shipping_type": {
+    "field": "shippingtype",
+    "table": "shippingzones",
+    "mappings": {
+      "domestic": {
+        "display_name": "Domestic Shipping",
+        "scope": "within_country",
+        "description": "Within-country delivery"
+      },
+      "international": {
+        "display_name": "International Shipping",
+        "scope": "cross_border",
+        "description": "Cross-border delivery"
+      }
+    }
+  },
+  
+  "stock_take_status": {
+    "field": "status",
+    "table": "stocktakes",
+    "mappings": {
+      "open": {
+        "display_name": "Open",
+        "is_final": false,
+        "can_edit": true,
+        "description": "Stock take in progress"
+      },
+      "completed": {
+        "display_name": "Completed",
+        "is_final": true,
+        "can_edit": false,
+        "description": "Stock take finished"
+      },
+      "cancelled": {
+        "display_name": "Cancelled",
+        "is_final": true,
+        "can_edit": false,
+        "description": "Stock take cancelled"
+      }
+    }
+  },
+  
+  "feedback_reason_code": {
+    "field": "reasoncode",
+    "table": "feedbacks",
+    "mappings": {
+      "others": {
+        "display_name": "Other Issues",
+        "category": "general",
+        "description": "General feedback not covered by specific categories"
+      },
+      "delivery_issue": {
+        "display_name": "Delivery Issue",
+        "category": "logistics",
+        "description": "Problems with delivery process"
+      },
+      "quality_issue": {
+        "display_name": "Quality Issue",
+        "category": "product",
+        "description": "Product quality concerns"
+      },
+      "service_issue": {
+        "display_name": "Service Issue",
+        "category": "service",
+        "description": "Service quality problems"
+      }
+    }
+  },
+  
+  "feedback_reporter_type": {
+    "field": "reportertype",
+    "table": "feedbacks",
+    "mappings": {
+      "consumer": {
+        "display_name": "Consumer",
+        "role": "customer",
+        "description": "End customer feedback"
+      },
+      "merchant": {
+        "display_name": "Merchant",
+        "role": "business",
+        "description": "Business owner feedback"
+      },
+      "support": {
+        "display_name": "Support Team",
+        "role": "internal",
+        "description": "Support team feedback"
+      }
+    }
+  },
+  
+  "logistics_provider": {
+    "field": "logisticsprovider",
+    "table": "feedbacks",
+    "mappings": {
+      "pandago": {
+        "display_name": "Pandago",
+        "parent_company": "Foodpanda",
+        "service_type": "third_party"
+      },
+      "grabexpress": {
+        "display_name": "Grab Express",
+        "parent_company": "Grab",
+        "service_type": "third_party"
+      },
+      "internal": {
+        "display_name": "Internal Delivery",
+        "parent_company": "merchant",
+        "service_type": "in_house"
+      }
+    }
+  },
+  
+  "device_platform": {
+    "field": "platform",
+    "table": "businesses__cashregisters__device",
+    "mappings": {
+      "Android": {
+        "display_name": "Android",
+        "type": "mobile",
+        "os": "android",
+        "manufacturer": "various"
+      },
+      "iOS": {
+        "display_name": "iOS",
+        "type": "mobile",
+        "os": "ios",
+        "manufacturer": "apple"
+      },
+      "Windows": {
+        "display_name": "Windows",
+        "type": "desktop",
+        "os": "windows",
+        "manufacturer": "various"
+      }
+    }
+  },
+  
+  "qr_ordering_status": {
+    "field": "status",
+    "table": "businesses__stores__qrorderingsettings",
+    "mappings": {
+      "active": {
+        "display_name": "Active",
+        "is_enabled": true,
+        "description": "QR ordering is enabled"
+      },
+      "inactive": {
+        "display_name": "Inactive",
+        "is_enabled": false,
+        "description": "QR ordering is disabled"
+      }
+    }
+  },
+  
+  "special_fields": {
+    "empty_string_usage": {
+      "pattern": "Most optional fields use '' instead of NULL",
+      "recommendation": "Check for both NULL and empty string",
+      "example": "WHERE (field IS NULL OR field = '')"
+    },
+    "id_format": {
+      "pattern": "{business}_{mongoid}",
+      "example": "kamdar_676410f6cdc3700007bbf161",
+      "components": {
+        "business": "lowercase business identifier",
+        "separator": "_",
+        "mongoid": "24-character hexadecimal ObjectId"
+      }
+    },
+    "unicode_fields": {
+      "supports": ["Thai", "Chinese", "Malay", "Arabic"],
+      "examples": {
+        "thai_product": "ครอปสก๊อตเซ็ต",
+        "chinese_product": "牛肉面",
+        "html_entities": "Women&#39;s Apparel"
+      }
+    }
+  }
+}

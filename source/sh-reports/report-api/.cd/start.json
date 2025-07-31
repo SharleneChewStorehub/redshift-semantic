@@ -1,0 +1,13 @@
+{
+    "apps": {
+        "name": "report-server",
+        "script": "/usr/local/nodejs/bin/yarn",
+        "args": ["launch"],
+        "watch": false,
+        "exec_interpreter": "node",
+        "exec_mode": "fork",
+        "out_file": "/data/logs/report-server/out.log",
+        "error_file": "/data/logs/report-server/err.log",
+        "merge_logs": true
+    }
+}

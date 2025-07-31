@@ -1,0 +1,43 @@
+#!/bin/sh
+
+black() {
+    echo -e "\033[1;30m>>> $@ \033[0m"
+}
+
+red() {
+    echo -e "\033[1;31m>>> $@ NOT FOUND \033[0m"
+}
+
+die() {
+    echo -e "\033[1;31m>>> $@ NOT FOUND \033[0m"
+    exit 1
+}
+
+# Default Value
+[ -z $WORKSPACE ] && WORKSPACE="./"
+env_file=".env"
+env_example_file=".env.example"
+rc=0
+
+cd ${WORKSPACE}
+
+if [ ! -e ${env_file} ];then
+    die "FILE .env.example"
+fi
+
+if [ ! -e ${env_example_file} ];then
+    die "FILE ${env_example_file}"
+fi
+
+black "Checking ${env_example_file} covers all local ${env_file} values"
+list_g=$(cat ${env_file} |grep -vE "^#|^$"|sed s#=.*##g)
+list_a=$(cat ${env_example_file} |sed s#=.*##g)
+echo ${list_a}|grep -w "PORT" >/dev/null || list_a+=" PORT"
+for i in ${list_g}
+do
+if ! echo ${list_a}|grep -w $i >/dev/null; then
+    red "'$i'"
+    rc=1
+fi
+done
+exit $rc
