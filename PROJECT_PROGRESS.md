@@ -3,16 +3,16 @@
 ## 📋 **Project Overview**
 
 **Project Name**: StoreHub Redshift Semantic Layer - Production Natural Language to SQL System  
-**Current Phase**: Critical Architectural Pivot 🚨 DECISION REQUIRED  
+**Current Phase**: Phase 5: Enhanced RAG Context Development 🔄 IN PROGRESS  
 **Ultimate Objective**: Production-ready Natural Language to SQL translation system for complex multi-tenant retail/F&B operations  
-**Current Sprint Goal**: COMPLETE - Final architectural validation revealed critical findings requiring immediate pivot  
-**Technology Stack**: Google Gemini 2.5 Pro (Primary), Google Gemini 2.0 Flash (Initial Baseline), Python 3.9, LangChain, Metabase API  
+**Current Sprint Goal**: Design and build the 3-component context (Entities, Fields, Relationships) for the new Enhanced RAG system  
+**Technology Stack**: Google Gemini 2.5 Pro (Primary), Python 3.9, LangChain, Metabase API  
 **Business Scope**: Multi-country operations (Malaysia, Philippines, Thailand, Singapore)  
-**Last Updated**: August 2, 2025
+**Last Updated**: January 25, 2025
 
 ## 🎯 **Strategic Context**
 
-This validation sprint is part of a larger architectural decision process. The project has evolved through multiple phases:
+This project has evolved through a comprehensive validation phase that provided definitive architectural guidance. The journey demonstrates the importance of evidence-based decision making in AI system architecture:
 
 ### **Phase 1-3: Complex Semantic Layer Development** ✅ COMPLETED
 - **v1.0-v2.0**: Built sophisticated 6-layer JSON semantic architecture
@@ -20,12 +20,17 @@ This validation sprint is part of a larger architectural decision process. The p
 - **Real-world validation**: 31 tables analyzed, 3,000+ sample records, extensive business logic
 - **Production-ready infrastructure**: Complete CI/CD, monitoring, testing framework
 
-### **Phase 4: Architectural Validation** ✅ COMPLETED
-- **Internal analysis**: Deep architectural review identified complexity concerns
-- **External research**: Market comparison with Netflix/Stripe standards
-- **Testing completed**: Multi-agent vs Single-agent approaches with "Perfect Schema" validation
-- **Critical finding**: 100% failure rate across both sophisticated frameworks
-- **Decision outcome**: Emergency architectural pivot required  
+### **Phase 4: Architectural Validation Sprint** ✅ COMPLETED - CRITICAL FINDINGS
+- **Comprehensive testing**: RAG vs Framework vs Multi-Agent approaches with "Perfect Schema" validation
+- **Definitive results**: 100% failure rate across both sophisticated frameworks
+- **Clear winner identified**: RAG baseline with 78.6% execution success vs 0% for complex frameworks
+- **Strategic pivot validated**: Evidence-based decision to abandon complex architectures
+
+### **Phase 5: Enhanced RAG Context Development** 🔄 IN PROGRESS
+- **New architecture**: 3-component context system (Entities, Fields, Relationships)
+- **Iterative methodology**: Human-in-the-loop development with 9-step build plan
+- **Schema foundation**: 10 critical tables with manual descriptions and AI-powered field disambiguation
+- **Current progress**: Steps 1-3 completed, moving to field definition generation
 
 ---
 
@@ -83,45 +88,174 @@ The project contains a comprehensive semantic layer system built over multiple i
 - **Modern tools**: dbt Semantic Layer, Cube.dev offer simpler solutions
 - **Maintenance overhead**: Complex dependencies create operational burden
 
-## 🎯 **Current Validation Sprint**
+## 📊 **Phase 4: Completed Validation Sprint - Key Findings**
 
-### **Sprint Rationale**
-Based on architectural analysis, testing **RAG vs Framework approaches** through multi-model validation to determine the optimal architectural direction.
+### **Sprint Objective**
+Validate whether a RAG agent or semantic framework approach could achieve the same business outcomes with significantly reduced architectural complexity compared to our 500+ file semantic layer.
 
-### **Sprint Goal**
-Validate whether a RAG agent or semantic framework approach can achieve the same business outcomes with significantly reduced architectural complexity.
-
-### **Success Criteria**
-1. ✅ **Multi-Model Testing**: Test both approaches across Gemini 2.0 Flash and 2.5 Pro
-2. ✅ **Automated Testing Pipeline**: Script processes all golden queries automatically
-3. ✅ **Real-World Validation**: Integration with Metabase API for query execution
-4. ✅ **Comprehensive Results**: JSON output with detailed metrics and comparisons
-5. ✅ **Forensic Analysis**: Deep technical audits of both architectural approaches
-6. 🔄 **Architectural Decision**: Choose optimal approach based on validation results
-
-### **Test Scope**
+### **Test Scope & Methodology**
 - **Golden Queries**: 14 business intelligence queries from real Metabase usage
-- **Business Domains**: Cross-domain queries testing architectural stress points
-- **Complexity Testing**: Queries that would challenge the 6-layer dependency chain
-- **Performance Comparison**: RAG vs Framework approaches across multiple models
+- **Architectures Tested**: RAG baseline, Single-Agent Framework, Multi-Agent Framework
+- **Models**: Google Gemini 2.5 Pro and 2.0 Flash
+- **Real-World Validation**: Integration with Metabase API for query execution
+
+### **Critical Validation Results**
+
+#### **RAG Baseline (Winner)**
+- **Execution Success Rate**: 78.6% (11/14 queries executed)
+- **Logical Correctness Rate**: 42.9% (6/14 business logic accurate)
+- **Key Strength**: Simple, functional approach that actually works
+- **Key Weakness**: Significant business logic oversimplification
+
+#### **Single-Agent Framework (Complete Failure)**
+- **Execution Success Rate**: 0% (0/14 queries executed)
+- **Context Overhead**: 162K characters of semantic context
+- **Critical Issue**: Fundamental schema incompatibility despite "Perfect Schema Rule"
+- **Resource Efficiency**: Negative ROI - 80x more context for 0% improvement
+
+#### **Multi-Agent Framework (Complete Failure)**
+- **Execution Success Rate**: 0% (0/14 queries executed)
+- **Architecture**: Specialized agents for intent, schema, logic, and orchestration
+- **Critical Issue**: Identical schema errors as single-agent approach
+- **Conclusion**: Multi-agent specialization provides no benefit when core schema understanding is broken
+
+### **Strategic Validation Conclusions**
+1. **RAG Approach**: Only viable baseline with functional execution capability
+2. **Complex Frameworks**: Both sophisticated approaches failed completely despite massive context
+3. **Schema Compatibility**: MongoDB-style schemas fundamentally challenging for current LLMs
+4. **Business Logic**: Real-world queries require sophisticated business rule integration that simple RAG lacks
+
+**Decision Outcome**: Abandon complex frameworks; enhance RAG baseline with targeted business logic improvements.
 
 ---
 
-## 🏗️ **Architecture & Components**
+## 🔄 **Phase 5: Enhanced RAG Context Development (Current Work)**
+
+### **New Architectural Approach**
+
+Based on validation sprint findings, we are building an **Enhanced RAG system** that maintains the simplicity of the RAG baseline while addressing its 42.9% logical correctness gap through structured context enhancement.
+
+#### **The New 3-Component Architecture**
+
+The new semantic layer will be structured with three core components that provide targeted, efficient context for LLM query generation:
+
+**1. Entities/Tables Component:**
+- Core business concepts and table definitions
+- Clear table purposes and business domain mapping
+- Critical table relationships and join patterns
+- Multi-tenant security requirements per table
+
+**2. Fields Component:**
+- Dimension definitions with business meaning
+- Complex calculated metrics and their formulas
+- Field data types, constraints, and validation rules
+- Enum values and status code mappings
+
+**3. Relationships Component:**
+- How data entities connect across the business
+- Join logic and foreign key relationships
+- Business rule constraints between entities
+- Cross-table validation requirements
+
+### **9-Step Iterative Build Plan**
+
+We are following a systematic, human-in-the-loop process to build this enhanced context:
+
+#### **✅ Step 1: Start with Critical Tables (10 max) - COMPLETED**
+- Reduced scope from 14 to 10 critical tables for focused development
+- Selected core business entities: businesses, customers, products, transactions, payments, stores, employees, etc.
+- Prioritized tables that appear in our 14 golden queries
+
+#### **✅ Step 2: Manually Add Table Descriptions - COMPLETED**
+- Added comprehensive business context for each table
+- Documented table purposes, business domains, and usage patterns
+- Established clear understanding of multi-tenant data structure
+
+#### **✅ Step 3: AI-Powered Field Disambiguation (Human-in-the-Loop) - COMPLETED**
+- Generated 238 targeted questions about ambiguous field meanings
+- Achieved 45.4% completion rate with 108 answered, 130 blank fields remaining
+- Identified critical business logic gaps requiring domain expertise
+
+#### **🔄 Step 4: AI Generates First-Pass Field Definitions with Confidence Scores - IN PROGRESS**
+- Leverage answered schema questions to generate field definitions
+- Assign confidence scores based on available information
+- Flag fields requiring additional business input
+
+#### **📋 Step 5: AI Synthesizes Definitions with Existing Data Annotations**
+- Merge field definitions with existing business annotations
+- Cross-reference with real data samples from 3,000+ records
+- Validate consistency across multiple data sources
+
+#### **📋 Step 6: Define Business Rules/Logic using Metabase Query Analysis**
+- Analyze our 14 golden queries for business logic patterns
+- Extract critical filters, calculations, and validation rules
+- Document mandatory business rule enforcement
+
+#### **📋 Step 7: Codify Critical Filters and Enum Values**
+- Systematize multi-tenant security filters
+- Document status codes, payment types, and business categorizations
+- Create reusable filter templates
+
+#### **📋 Step 8: Finalize Components for NL-to-SQL Generation**
+- Optimize context structure for LLM consumption
+- Balance information completeness with context efficiency
+- Validate components against RAG baseline performance
+
+#### **📋 Step 9: Leverage Metabase Query Database for Example-Driven RAG**
+- Integrate real-world query patterns as RAG examples
+- Create query pattern library from successful business queries
+- Implement hybrid approach: structured context + example patterns
+
+### **Current Progress Status**
+
+**Completed Work:**
+- ✅ **Schema Foundation**: 10 critical tables documented
+- ✅ **Table Context**: Business descriptions and domain mapping
+- ✅ **Field Analysis**: 238 fields analyzed, 108 definitions captured
+- ✅ **Gap Identification**: 130 fields flagged for additional input
+
+**Current Sprint:**
+- 🔄 **Step 4**: Generating first-pass field definitions with confidence scoring
+- 🔄 **Schema Integration**: Merging manual answers with AI-generated definitions
+
+**Next Sprint:**
+- 📋 **Business Logic Extraction**: Mining golden queries for calculation patterns
+- 📋 **Filter Systematization**: Codifying security and validation rules
+
+### **Enhanced RAG Design Philosophy**
+
+**Principle 1: Simplicity with Precision**
+- Maintain RAG's functional simplicity while adding targeted business context
+- Avoid the 162K character context overhead that caused framework failures
+
+**Principle 2: Evidence-Based Enhancement**
+- Every enhancement addresses specific failures identified in validation sprint
+- Focus on the 42.9% → 90%+ logical correctness improvement gap
+
+**Principle 3: Human-in-the-Loop Quality**
+- Combine AI efficiency with human domain expertise
+- Iterative refinement based on real business feedback
+
+**Principle 4: Production-Ready Foundation**
+- Build on the 78.6% execution success of RAG baseline
+- Ensure enhancements improve rather than break existing capabilities
+
+---
+
+## 🏗️ **Technical Architecture & Components**
 
 ### **Core Components**
 
-#### 1. **RAG Agent** (`run_rag_test.py`)
-- **LLM**: Google Gemini (2.5 Pro / 2.0 Flash) via LangChain
-- **Context Strategy**: Uses golden SQL queries as examples for new query generation
+#### 1. **Enhanced RAG Agent** (`run_enhanced_rag_test.py` - In Development)
+- **LLM**: Google Gemini 2.5 Pro via LangChain
+- **Context Strategy**: 3-component structured context + example patterns
 - **Temperature**: 0.1 (deterministic outputs)
-- **Prompt Engineering**: Business analyst persona with SQL generation guidelines
+- **Prompt Engineering**: Business analyst persona with enhanced business logic awareness
 
-#### 2. **Framework Agent** (`run_framework_test.py`)
-- **LLM**: Google Gemini (2.5 Pro / 2.0 Flash) via LangChain
-- **Context Strategy**: Uses 6 JSON semantic framework files (162K characters)
-- **Temperature**: 0.1 (deterministic outputs)
-- **Semantic Context**: Business rules, data catalog, query patterns, value mappings
+#### 2. **Context Generation Pipeline** (In Development)
+- **Entity Processor**: Generates table context from schema questions
+- **Field Processor**: Creates field definitions with confidence scoring
+- **Relationship Mapper**: Documents joins and business rule connections
 
 #### 3. **Golden Query Dataset** (`golden_queries/`)
 - **Format**: SQL files with business questions as comments
@@ -140,7 +274,7 @@ Validate whether a RAG agent or semantic framework approach can achieve the same
 
 #### 5. **Results Pipeline** (`results/`)
 - **Output Format**: JSON files with comprehensive metadata
-- **Naming Convention**: `{query_number}_{query_name}_{approach}_result.json`
+- **Naming Convention**: `{query_number}_{query_name}_enhanced_rag_result.json`
 - **Content**: Business question, golden SQL, AI-generated SQL, API response, metrics
 
 ---
@@ -191,24 +325,25 @@ alias ragdev="cd /Users/sharlenechew/redshift-semantic && source venv/bin/activa
 ## 📁 **Generated Files & Artifacts**
 
 ### **Main Scripts**
-- **`run_rag_test.py`**: RAG agent automation script (348 lines)
-- **`run_framework_test.py`**: Framework agent automation script
-  - Environment validation
-  - File processing pipeline
-  - Agent implementation
-  - Metabase API integration
-  - Results generation
+- **`run_rag_test.py`**: Original RAG agent automation script (348 lines)
+- **`run_framework_test.py`**: Framework agent automation script (archived)
+- **`run_enhanced_rag_test.py`**: Enhanced RAG system (in development)
+- **Context Generation Scripts**: Field definition and relationship mapping tools
 
 ### **Dependencies & Documentation**
 - **`requirements.txt`**: Python package specifications
 - **`env_template.txt`**: Environment variable template with setup instructions
 
+### **Schema Documentation**
+- **`schema_questions.md`**: 238 field clarification questions with 108 answers
+- **`database_schema_critical2.xlsx`**: 10 critical tables schema
+- **Enhanced Context Files**: Generated 3-component context (in development)
+
 ### **Results Directories**
-- **`results/`**: Primary test results (RAG agent outputs)
-- **`results_framework/`**: Framework agent test results
-- **`results_perfect_schema/`**: Final validation sprint results (Single-Agent + Multi-Agent)
-- **`gemini2.0flash/results_rag/`**: Gemini 2.0 Flash RAG baseline results
-- **`gemini2.0flash/results_framework/`**: Gemini 2.0 Flash Framework baseline results
+- **`results/`**: Original RAG test results (baseline)
+- **`results_framework/`**: Framework agent test results (archived)
+- **`results_enhanced_rag/`**: Enhanced RAG system results (upcoming)
+- **`gemini2.0flash/`**: Model comparison baseline results
 
 **Result File Schema**:
 ```json
@@ -217,117 +352,21 @@ alias ragdev="cd /Users/sharlenechew/redshift-semantic && source venv/bin/activa
   "timestamp": "execution_timestamp",
   "business_question": "extracted_business_question",
   "golden_sql": "original_reference_query",
-  "ai_generated_sql": "agent_output",
+  "ai_generated_sql": "enhanced_rag_output",
   "api_result": {
     "success": true/false,
     "status_code": 200,
     "data": "metabase_response",
     "row_count": 42,
     "query": "executed_sql"
+  },
+  "context_metadata": {
+    "entities_used": ["businesses", "customers"],
+    "fields_referenced": ["subscriptionstatus", "planid"],
+    "confidence_scores": {"entity": 0.95, "field": 0.87, "relationship": 0.92}
   }
 }
 ```
-
----
-
-## 📊 **Validation Sprint Results & Analysis (Phase 4)**
-
-### **Test Run 1: Initial Baseline with Gemini 2.0 Flash**
-
-The initial testing phase established a baseline understanding of both architectural approaches:
-
-#### **RAG Agent Baseline Results**
-- **Execution Success Rate**: 0% (0/14 test cases passed)
-- **Primary Issues**: Complete schema failures - all queries referenced non-existent tables
-- **Critical Finding**: False success reporting masked complete system failure (console showed "100% success" but all queries failed)
-
-#### **Framework Agent Baseline Results**  
-- **Execution Success Rate**: 100% (14/14 queries executed via API)
-- **Data Return**: All queries returned 0 rows from database
-- **Schema Issues**: Systematic problems with table qualification and parameter injection
-- **Promise Identified**: Framework approach showed structural improvements over RAG
-
-**Key Baseline Insight**: The Framework agent demonstrated superior execution success, suggesting the enhanced semantic context provided meaningful improvements over basic RAG, though significant schema and logic issues remained.
-
-### **Test Run 2: Deep Audit with Gemini 2.5 Pro**
-
-Following the promising baseline results, comprehensive testing was conducted with Gemini 2.5 Pro to obtain definitive, high-quality comparisons:
-
-#### **RAG Agent Forensic Audit**
-- **Execution Success Rate**: 11/14 (78.6%)
-- **Logical Correctness Rate**: **6/14 (42.9%)** - DRASTICALLY LOWER than initial assessment
-- **Architectural Equivalence Rate**: **2/14 (14.3%)** - CRITICAL FINDING
-
-**Primary Failure Patterns:**
-1. **Oversimplification Bias**: AI consistently reduces complex multi-CTE analytical frameworks to simple aggregations
-2. **Business Logic Deviation**: Critical business rules and edge cases systematically ignored
-3. **Data Modeling Misalignment**: AI favors straightforward joins over sophisticated data preparation patterns
-4. **Temporal Logic Errors**: Time-based calculations frequently use incorrect baseline logic
-
-#### **Framework Agent Comprehensive Audit**
-- **Execution Success Rate**: **0% (0/14 test cases passed)**
-- **Logical Correctness Rate**: **0% (0/14 test cases correct)**
-
-**Systematic Failure Patterns:**
-1. **Complete Schema Misunderstanding**: Agent consistently references non-existent tables and schemas
-2. **Fundamental Database Architecture Ignorance**: Shows no understanding of actual data model
-3. **100% Query Execution Failure Rate**: Not a single query executed successfully
-4. **Framework Context Ignored**: 162K character semantic framework provides zero benefit
-
-#### **Comparative Performance Analysis**
-
-| Metric | RAG Agent (2.5 Pro) | Framework Agent (2.5 Pro) | Winner |
-|--------|---------------------|---------------------------|---------|
-| **Execution Success** | 78.6% (11/14) | 0% (0/14) | **RAG** |
-| **Logical Correctness** | 42.9% (6/14) | 0% (0/14) | **RAG** |
-| **Schema Understanding** | Partial | Complete Failure | **RAG** |
-| **Business Logic** | Simplified but Present | Absent | **RAG** |
-| **Context Efficiency** | Basic but Effective | Massive Overhead, Zero ROI | **RAG** |
-| **Production Readiness** | Not Ready | Completely Unsuitable | **RAG** |
-
-#### **Critical Technical Findings**
-
-**RAG Agent Issues:**
-- While achieving better execution rates, demonstrates fundamental architectural misunderstanding in 85.7% of cases
-- Produces syntactically correct SQL that executes but contains wrong business logic
-- Missing critical business filters in 71% of cases (internal account exclusions, timezone adjustments)
-
-**Framework Agent Catastrophic Failures:**
-- **Framework Design Flaw**: 162K character semantic framework completely ignored during query generation
-- **Schema Incompatibility**: MongoDB-style schema fundamentally incompatible with LLM SQL generation
-- **Negative ROI**: 80x more context overhead for 0% improvement over RAG approach
-
-### **Key Insight: Model Choice as a Critical Variable**
-
-The upgrade from Gemini 2.0 Flash to 2.5 Pro revealed a critical learning: **model sophistication significantly impacts performance, but fundamental architectural problems persist regardless of model quality**. 
-
-While 2.5 Pro improved RAG execution rates from 0% to 78.6%, it also exposed that the Framework approach suffers from fundamental design flaws that cannot be solved through better models alone. The semantic framework's complete failure to influence query generation suggests the need for an entirely different agent architecture approach.
-
-**Strategic Implication**: Future testing must focus on specialized, multi-agent architectures that can address the schema mapping and business logic integration challenges that single-agent approaches cannot solve.
-
-### **Final Sprint: Perfect Schema Validation (August 2025)**
-
-Following the single-agent framework failures, a final "Perfect Schema" test was conducted with both Single-Agent and Multi-Agent architectures to determine if explicit schema guidance could resolve the fundamental schema understanding issues.
-
-#### **Perfect Schema Test Results**
-- **Single-Agent Framework**: 0% execution success (14/14 queries failed)
-- **Multi-Agent Framework**: 0% execution success (14/14 queries failed)
-- **RAG Baseline (Retrospective Winner)**: 78.6% execution success (11/14 queries executed)
-
-**Critical Discovery**: Both sophisticated frameworks achieved **complete execution failure** despite explicit "Perfect Schema Rule" implementation, while the simple RAG baseline maintained functional query generation.
-
-#### **Error Pattern Analysis**
-**Single-Agent Failures**: Systematic schema errors (e.g., "column type does not exist", "column b.business does not exist")
-**Multi-Agent Failures**: Identical schema errors (e.g., "column business_id does not exist", "column business_id does not exist")
-
-**Framework Context Overhead**: 161,932 characters of semantic context proved not only ineffective but potentially counterproductive, leading to worse performance than simple RAG approaches.
-
-#### **Final Architectural Assessment**
-1. **RAG Baseline**: Only viable approach with 78.6% execution rate, despite business logic limitations
-2. **Single-Agent Framework**: Fundamentally broken with 0% execution success  
-3. **Multi-Agent Framework**: Fundamentally broken with 0% execution success
-
-**Emergency Recommendation**: Halt development of all sophisticated frameworks; return to RAG baseline with targeted improvements.
 
 ---
 
@@ -358,155 +397,141 @@ Following the single-agent framework failures, a final "Perfect Schema" test was
 ### **Phase 4: Validation & Analysis** ✅ COMPLETED
 - [x] Execute full test suite across multiple models and approaches
 - [x] Forensic-level technical audits of all generated queries
-- [x] Comprehensive comparative analysis (RAG vs Framework)
+- [x] Comprehensive comparative analysis (RAG vs Framework vs Multi-Agent)
 - [x] Performance metrics analysis across model variants
 - [x] Deep architectural assessment with production readiness evaluation
+- [x] Final architectural decision: Enhanced RAG approach
+
+### **Phase 5: Enhanced RAG Context Development** 🔄 IN PROGRESS
+- [x] **Step 1**: Critical table selection (10 tables)
+- [x] **Step 2**: Manual table descriptions
+- [x] **Step 3**: AI-powered field disambiguation (238 questions, 108 answers)
+- [x] Architecture design for 3-component context system
+- [x] Schema foundation with business context integration
+- [ ] **Step 4**: First-pass field definitions with confidence scores
+- [ ] **Step 5**: Synthesis with existing data annotations
+- [ ] **Step 6**: Business logic extraction from golden queries
+- [ ] **Step 7**: Critical filter and enum value codification
+- [ ] **Step 8**: Context optimization for NL-to-SQL generation
+- [ ] **Step 9**: Metabase query pattern integration
 
 ---
 
 ## 🚀 **How to Run the System**
 
-### **Quick Start**
+### **Current System (RAG Baseline)**
 ```bash
 # Method 1: Using IDE (Recommended)
 1. Open Cursor
 2. Open project folder
-3. Run: python run_rag_test.py          # For RAG testing
-4. Run: python run_framework_test.py    # For Framework testing
+3. Run: python run_rag_test.py          # For baseline RAG testing
 
 # Method 2: Using Terminal
 ragdev                         # Activates environment
-python run_rag_test.py        # Runs RAG validation
-python run_framework_test.py  # Runs Framework validation
+python run_rag_test.py        # Runs RAG baseline validation
+```
+
+### **Enhanced RAG System (In Development)**
+```bash
+# Once Step 4 is completed
+python run_enhanced_rag_test.py  # Enhanced RAG with 3-component context
 ```
 
 ### **Expected Output**
 ```
-🚀 Starting [RAG/Framework] Agent Test Automation
+🚀 Starting Enhanced RAG Agent Test Automation
 ==================================================
 ✓ Environment variables validated
-✓ Results directory created/verified: results
+✓ Results directory created/verified: results_enhanced_rag
 📁 Found 14 golden query files to process
+📊 Loading 3-component context: Entities, Fields, Relationships
 
 🔄 Processing: 01_membership_insights.sql
    📝 Business Question: For the merchant 'starwise'...
-   🤖 Generating AI SQL query...
+   🧠 Applying enhanced context (Entities: 3, Fields: 15, Relationships: 2)
+   🤖 Generating AI SQL query with business logic enhancement...
    🌐 Testing query against Metabase API...
    ✓ SUCCESS: Query executed successfully (127 rows)
-   ✓ Result saved to results/01_membership_insights_[approach]_result.json
+   📊 Context confidence: Entity 0.95, Field 0.87, Relationship 0.92
+   ✓ Result saved to results_enhanced_rag/01_membership_insights_enhanced_rag_result.json
 
 [... continues for all 14 files ...]
 
 ==================================================
-🏁 Test Automation Complete!
+🏁 Enhanced RAG Test Automation Complete!
 📊 Results: X/14 queries executed successfully
-📂 Detailed results saved in: results/
-🎉 All tests passed!
+📈 Logical correctness improvement: Y% (target: >90%)
+📂 Detailed results saved in: results_enhanced_rag/
+🎉 Enhanced RAG validation complete!
 ```
+
+---
+
+## 🔄 **Future Roadmap**
+
+### **Phase 5: Enhanced RAG Context Development** 🔄 IN PROGRESS
+**Current Sprint (Steps 4-6):**
+- [ ] **Step 4**: AI generates first-pass field definitions with confidence scores
+- [ ] **Step 5**: AI synthesizes definitions with existing data annotations  
+- [ ] **Step 6**: Define business rules/logic using Metabase query analysis
+
+**Next Sprint (Steps 7-9):**
+- [ ] **Step 7**: Codify critical filters and enum values
+- [ ] **Step 8**: Finalize components for NL-to-SQL generation
+- [ ] **Step 9**: Leverage Metabase query database for example-driven RAG
+
+**Success Criteria:**
+- Achieve >90% logical correctness (vs current 42.9% RAG baseline)
+- Maintain >75% execution success rate
+- Keep context overhead <20K characters (vs 162K failed framework)
+
+### **Phase 6: Enhanced RAG Validation** 📋 PLANNED
+- [ ] Full test suite execution with enhanced context
+- [ ] Comparative analysis: Enhanced RAG vs RAG baseline
+- [ ] Business logic accuracy validation across all 14 golden queries
+- [ ] Performance optimization and context tuning
+
+### **Phase 7: Production Preparation** 📋 PLANNED
+- [ ] Integration with existing TypeScript API infrastructure
+- [ ] Real-time schema sync with production databases
+- [ ] User acceptance testing with business stakeholders
+- [ ] Production deployment planning and monitoring setup
+
+### **Long-Term Vision** (6-12 months)
+- [ ] Industry-leading natural language to SQL system (>95% accuracy)
+- [ ] Multi-language support for regional operations
+- [ ] Advanced analytics and predictive insights integration
+- [ ] Voice interface for hands-free querying
+- [ ] Real-time business intelligence automation
 
 ---
 
 ## 🔍 **Quality Assurance & Validation**
 
-### **Automated Checks**
-- **Environment Validation**: Verifies all required dependencies
-- **File Integrity**: Validates golden query file format
-- **API Health**: Tests Metabase connectivity
-- **Error Handling**: Graceful failure recovery
-- **Result Verification**: Comprehensive output validation
+### **Enhanced RAG Quality Framework**
 
-### **Manual Validation Points**
-1. **Business Question Extraction**: Verify questions are parsed correctly
-2. **SQL Generation Quality**: Review AI-generated queries for correctness
-3. **Execution Results**: Validate against expected business logic
-4. **Performance Metrics**: Analyze response times and success rates
-5. **Forensic Analysis**: Deep technical review of query architecture and business logic
+#### **Context Quality Metrics**
+- **Entity Coverage**: Percentage of business concepts properly defined
+- **Field Accuracy**: Confidence scores for field definitions and business meaning
+- **Relationship Completeness**: Coverage of critical join patterns and business rules
 
----
+#### **Generation Quality Metrics**
+- **Execution Success Rate**: Percentage of queries that execute without errors
+- **Logical Correctness Rate**: Percentage of queries with accurate business logic
+- **Business Rule Compliance**: Adherence to mandatory filters and calculations
+- **Performance Efficiency**: Query execution time and resource utilization
 
-## 🚀 **Strategic Decision Framework**
+### **Automated Validation Pipeline**
+- **Schema Validation**: Pre-execution validation of table/column references
+- **Business Rule Checking**: Automated verification of mandatory filters
+- **Logic Pattern Matching**: Comparison against known good query patterns
+- **Performance Monitoring**: Continuous tracking of generation quality metrics
 
-### **Decision Point: Architecture Choice**
-The project is at a critical juncture between architectural approaches, with clear validation results:
-
-#### **Option A: Complex Semantic Layer (Current)**
-**Strengths:**
-- ✅ Comprehensive business logic handling
-- ✅ Multi-tenant security enforcement  
-- ✅ Sophisticated query pattern library
-- ✅ Real-world data validation completed
-- ✅ Production-ready infrastructure
-
-**Concerns:**
-- ⚠️ High maintenance overhead (500+ files)
-- ⚠️ Complex 6-layer dependency chain
-- ⚠️ Custom NL processing vs proven solutions
-- ⚠️ Manual schema synchronization risks
-
-#### **Option B: RAG Approach (Validated)**
-**Strengths:**  
-- ✅ Significantly simpler architecture
-- ✅ Demonstrated execution capability (78.6% success rate)
-- ✅ Easier to maintain and evolve
-- ✅ Industry-standard approach
-
-**Concerns:**
-- ⚠️ Business logic oversimplification (only 42.9% logical correctness)
-- ⚠️ Missing critical business filters in 71% of cases
-- ⚠️ Architectural misunderstanding in 85.7% of cases
-- ⚠️ Not production-ready without significant enhancement
-
-#### **Option C: Framework Approach (Invalidated)**
-**Assessment**: Complete failure across all metrics
-- ❌ 0% execution success rate
-- ❌ 162K context overhead with zero benefit
-- ❌ Fundamental schema incompatibility
-- ❌ Not viable for further development
-
-### **Validation Results Summary**
-1. **RAG Approach**: Partial success - achieves execution but lacks business logic sophistication
-2. **Framework Approach**: Complete failure - massive overhead with no benefits
-3. **Complex Semantic Layer**: Remains most capable but highest maintenance overhead
-
-## 🔄 **Future Roadmap**
-
-### **Phase 4: Architectural Validation** ✅ COMPLETED
-- [x] Execute multi-model testing across both approaches
-- [x] Forensic-level technical audits completed
-- [x] Comprehensive comparative analysis completed
-- [x] Production readiness assessment completed
-- [x] Final architectural decision recommendation: **ABANDON sophisticated frameworks**
-
-### **Phase 5: Multi-Agent System Test** ✅ COMPLETED - FAILED
-**Goal**: Test if a specialized, multi-agent architecture can solve the schema and logic failures identified in the single-agent tests.
-
-**Results**: **CRITICAL FAILURE**
-- [x] Multi-agent architecture implemented and tested
-- [x] Perfect Schema Rule applied for optimal conditions
-- [x] 100% execution failure rate (0/14 queries succeeded)
-- [x] Identical schema errors as single-agent approach
-- [x] **CONCLUSION**: Multi-agent specialization provides no benefit when core schema understanding is fundamentally broken
-
-### **Phase 6: Emergency Architectural Pivot** 🚨 IMMEDIATE ACTION REQUIRED
-**Decision Outcome**: **ABANDON ALL SOPHISTICATED FRAMEWORKS** - Return to RAG baseline with targeted improvements
-
-**Immediate Actions Required:**
-- [x] Halt development on Single-Agent and Multi-Agent frameworks
-- [ ] Conduct forensic analysis of "Perfect Schema Rule" implementation failure
-- [ ] Research why 161K+ character context led to worse performance
-- [ ] Design RAG baseline enhancement program to address 42.9% logical correctness gap
-
-**RAG Baseline Enhancement Program:**
-- [ ] Implement business logic validation framework
-- [ ] Add automated filter compliance checking (internal accounts, email domains)
-- [ ] Develop CTE complexity preservation mechanisms
-- [ ] Create business domain expert review workflows
-
-### **Long-Term Vision** (6-12 months)
-- [ ] Industry-leading natural language to SQL system
-- [ ] Multi-language support for regional operations
-- [ ] Advanced analytics and predictive insights
-- [ ] Voice interface for hands-free querying
+### **Human-in-the-Loop Validation**
+1. **Business Context Review**: Domain expert validation of entity and field definitions
+2. **Query Logic Verification**: Business user validation of generated analytical logic
+3. **Edge Case Testing**: Stress testing with complex, multi-domain queries
+4. **Production Readiness Assessment**: Comprehensive review before deployment
 
 ---
 
@@ -525,11 +550,11 @@ The project is at a critical juncture between architectural approaches, with cle
 
 ## 📚 **Key Learnings & Best Practices**
 
-### **Technical Insights**
-1. **Model Selection Critical**: Upgrading from Gemini 2.0 Flash to 2.5 Pro significantly improved RAG performance
-2. **Context Quality vs Quantity**: 162K character framework provided zero benefit over basic RAG context
-3. **Schema Compatibility**: MongoDB-style schemas fundamentally incompatible with current LLM training
-4. **Architecture Matters**: Single-agent approaches hit fundamental limitations regardless of model sophistication
+### **Technical Insights from Validation Sprint**
+1. **Model Selection Critical**: Gemini 2.5 Pro significantly outperformed 2.0 Flash for RAG
+2. **Context Quality vs Quantity**: 162K character framework provided zero benefit over simple RAG
+3. **Schema Compatibility**: MongoDB-style schemas challenging for current LLM training
+4. **Architecture Matters**: Complex frameworks hit fundamental limitations regardless of sophistication
 
 ### **Business Insights**
 1. **Business Logic Complexity**: Real-world queries require sophisticated business rule integration
@@ -537,11 +562,17 @@ The project is at a critical juncture between architectural approaches, with cle
 3. **Production Requirements**: High execution rates can mask critical business logic failures
 4. **ROI Analysis**: Massive context overhead can provide negative returns
 
+### **Enhanced RAG Design Principles**
+1. **Evidence-Based Enhancement**: Every feature addresses specific validation sprint failures
+2. **Iterative Development**: Human-in-the-loop refinement ensures business domain accuracy
+3. **Balanced Complexity**: Structured context without framework overhead
+4. **Production Focus**: Build on proven 78.6% execution success foundation
+
 ### **Process Improvements**
-1. **Multi-Model Testing**: Testing across model variants reveals performance characteristics
-2. **Forensic Analysis**: Deep technical audits essential for production readiness assessment
+1. **Multi-Model Testing**: Model comparison reveals performance characteristics
+2. **Forensic Analysis**: Deep technical audits essential for production readiness
 3. **Comparative Methodology**: Direct approach comparison provides clear decision frameworks
-4. **Iterative Architecture**: Progression from simple to complex reveals optimal complexity levels
+4. **Structured Context Development**: 9-step plan ensures systematic, quality-focused development
 
 ---
 
@@ -553,19 +584,20 @@ The project is at a critical juncture between architectural approaches, with cle
 - [Metabase API Reference](https://www.metabase.com/docs/latest/api-documentation)
 
 ### **Core Project Files**
-- **RAG Test Script**: `run_rag_test.py` (automated RAG validation system)
-- **Framework Test Script**: `run_framework_test.py` (automated Framework validation system)
+- **Enhanced RAG Development**: `run_enhanced_rag_test.py` (in development)
 - **Validation Reports**: 
+  - `08b_FINAL_PIVOT_SPRINT_REPORT.md` (architectural decision)
   - `07a_VALIDATION_RESULTS_LOOP1_RAG_AUDIT.md` (RAG forensic analysis)
-  - `07b_VALIDATION_RESULTS_LOOP2_FRAMEWORK_AUDIT.md` (Framework forensic analysis)
+  - `07b_VALIDATION_RESULTS_LOOP2_FRAMEWORK_AUDIT.md` (Framework failure analysis)
+- **Schema Documentation**: `schema_questions.md` (field disambiguation)
 - **Requirements**: `requirements.txt` 
 - **Configuration**: `env_template.txt`
 - **Golden Queries**: `golden_queries/*.sql` (14 real Metabase queries)
-- **Test Results**: Multiple result directories for different approaches and models
+- **Test Results**: Multiple result directories for validation approaches
 - **Project Documentation**: `PROJECT_PROGRESS.md` (this file)
 
-### **Semantic Layer System**
-- **Main Source**: `source/sh-reports/` (500+ files)
+### **Semantic Layer System (Legacy)**
+- **Main Source**: `source/sh-reports/` (500+ files - reference architecture)
 - **TypeScript API**: `source/sh-reports/report-api/`
 - **Semantic Core**: `source/sh-reports/semantic_layer_v2/core/`
 - **Analysis Documents**: `00_AI_MANIFEST.md`, `01_AI_ANALYSIS.md`, `02_PROJECT_SUMMARY.md`, `03_AI_CRITIQUE.md`, `03a_SYNTHESIS.md`, `04a_TEST_PLAN.md`
@@ -575,14 +607,14 @@ The project is at a critical juncture between architectural approaches, with cle
 ## 📞 **Support & Contact**
 
 For questions, issues, or contributions:
-1. **Review this documentation**
-2. **Check environment setup** using verification commands
-3. **Examine result JSON files** for detailed error information
-4. **Consult forensic audit reports** for technical analysis
+1. **Review this documentation** for current project status and methodology
+2. **Check schema_questions.md** for field definition progress
+3. **Examine validation reports** for architectural decision rationale
+4. **Monitor enhanced RAG development** through 9-step build plan progress
 5. **Contact team members** for domain-specific questions
 
 ---
 
-**Document Version**: 4.0  
-**Last Updated**: August 2, 2025  
-**Status**: CRITICAL PIVOT REQUIRED - All sophisticated frameworks failed, RAG baseline enhancement mandatory 
+**Document Version**: 5.0  
+**Last Updated**: January 25, 2025  
+**Status**: Enhanced RAG Context Development - Building 3-component system based on validation sprint findings
